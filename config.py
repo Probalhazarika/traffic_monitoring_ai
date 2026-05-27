@@ -7,18 +7,34 @@ import os
 # ── Paths ──────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(BASE_DIR, "videos", "traffic.mp4")
-MODEL_PATH = "yolov8s.pt"          # small model — better for 4K/overhead video
+MODEL_PATH = "yolov8s.pt"   # swap to yolov8s-visdrone.pt after fine-tuning
 DB_PATH    = os.path.join(BASE_DIR, "database", "traffic_data.db")
+
+# ── Research-grade pipeline flags ──────────────────
+# FP16 half-precision on MPS/CUDA (roughly 2× faster, negligible accuracy drop)
+USE_FP16 = True
+
+# Heatmap overlay opacity (0.0 = invisible, 1.0 = fully opaque)
+HEATMAP_ALPHA = 0.45
+
+# Hybrid density estimation weights (must sum to 1.0)
+# YOLO count score: normalised vehicle count per lane
+# Occupancy score:  fraction of lane polygon covered by bounding boxes
+# Motion score:     mean optical flow magnitude inside lane polygon
+DENSITY_WEIGHT_YOLO      = 0.5
+DENSITY_WEIGHT_OCCUPANCY = 0.3
+DENSITY_WEIGHT_MOTION    = 0.2
 
 # ── YOLO vehicle class IDs (COCO dataset) ──────
 # 2=car, 3=motorcycle, 5=bus, 7=truck
 VEHICLE_CLASSES = [2, 3, 5, 7]
-CONFIDENCE_THRESHOLD = 0.10   # lowered: overhead/distant cars in North/South score 0.10–0.15
+CONFIDENCE_THRESHOLD = 0.10   # lowered: overhead/distant cars score 0.10–0.15
 
 # ── Traffic density thresholds (vehicles / lane) ─
-DENSITY_LOW_MAX    = 5    # 0–5  → Low
-DENSITY_MEDIUM_MAX = 15   # 6–15 → Medium
-                          # >15  → High
+# Used for the raw YOLO count → density label mapping
+DENSITY_LOW_MAX    = 9    # 0–9   → Low
+DENSITY_MEDIUM_MAX = 15   # 10–15 → Medium
+                          # >15   → High
 
 # ── Signal green-light durations (seconds) ─────
 GREEN_LOW    = 15

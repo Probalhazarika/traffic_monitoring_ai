@@ -1,50 +1,50 @@
 # ─────────────────────────────────────────────────
 #  detector/yolo_detector.py
 #
-#  Detection Strategy — four-pass pipeline:
+#  Research-grade multi-pass detection pipeline.
+#
+#  Detection Strategy:
 #
 #  Pass 1 — Full display frame at imgsz=1280
-#            (fast global pass on the 720p frame)
+#            Catches medium/large vehicles.
 #
-#  Pass 2 — 4 overlapping quarter-tiles on display frame
-#            (catches objects split across tile edges)
+#  Pass 2 — 4 overlapping quarter-tiles (display frame)
+#            Catches objects split across tile edges.
 #
-#  Pass 3 — Per-lane zone crop from the ORIGINAL 4K frame,
+#  Pass 3 — Per-lane zone crop from the ORIGINAL 4K frame
 #            upscaled to 1280×1280 at conf=0.03.
-#            Running on the native-resolution frame means cars
-#            that are only 13×13px at 720p become 80×80px at 4K —
-#            large enough for YOLO to recognise confidently.
+#            4K pixels → cars that are 13px at 720p
+#            become 80px at 4K → detectable by YOLO.
+#            Optional Real-ESRGAN SR applied here.
 #
-#  All passes merged and deduplicated via IoU-NMS.
-#  All returned bbox coordinates are in display-frame space (720p).
+#  Fusion — Weighted Box Fusion (WBF) replaces NMS.
+#            All passes merge via confidence-weighted
+#            averaging, producing stable, non-jittery
+#            bounding boxes.
+#
+#  Optimisation — FP16 half-precision on MPS/CUDA.
 # ─────────────────────────────────────────────────
 
 from ultralytics import YOLO
 import cv2
 import numpy as np
-import sys, os
+import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import MODEL_PATH, VEHICLE_CLASSES, CONFIDENCE_THRESHOLD, LANE_ZONES
+from config import (MODEL_PATH, VEHICLE_CLASSES, CONFIDENCE_THRESHOLD,
+                    LANE_ZONES, USE_FP16)
 
-# Full-frame inference size (used on the display-resolution frame)
-YOLO_IMGSZ = 1280
-
-# Tile size for Pass 2
-TILE_SIZE = 640
-
-# Zone crop upscale size — the native-res crop is upscaled to this
-CROP_IMGSZ = 1280
-
-# Confidence for zone crops (lower = catch dim/small cars)
+# ── Detection constants ────────────────────────────
+YOLO_IMGSZ         = 1280
+TILE_SIZE          = 640
+CROP_IMGSZ         = 1280
 CROP_CONF_THRESHOLD = 0.03
-
-# IoU threshold for NMS deduplication across passes
-NMS_IOU_THRESHOLD = 0.45
+WBF_IOU_THRESHOLD  = 0.55   # WBF fusion threshold (higher = more merging)
+WBF_SKIP_BOX_THR   = 0.0001 # discard boxes below this confidence before WBF
 
 
 class YOLODetector:
     """
-    Four-pass YOLOv8 detector optimised for overhead 4K traffic cameras.
+    Four-pass YOLOv8 detector with Weighted Box Fusion.
 
     Call detect(display_frame, native_frame) to get detections.
     If native_frame is None, falls back to display_frame for all passes.
@@ -61,16 +61,29 @@ class YOLODetector:
     def __init__(self, model_path: str = MODEL_PATH):
         print(f"[YOLODetector] Loading model: {model_path}")
         self.model = YOLO(model_path)
-        self.vehicle_classes = VEHICLE_CLASSES
-        self.conf_threshold  = CONFIDENCE_THRESHOLD
+        self.vehicle_classes  = VEHICLE_CLASSES
+        self.conf_threshold   = CONFIDENCE_THRESHOLD
+        self._sr_enabled      = False   # toggled via /api/toggle_sr
+        self._sr_enhancer     = None    # lazy-loaded on first toggle-on
+        self._last_latency_ms = 0.0     # detection latency for benchmarking
 
         import torch
         if torch.backends.mps.is_available():
             self._device = "mps"
             print("[YOLODetector] Using Apple MPS (Metal GPU) ✅")
+        elif torch.cuda.is_available():
+            self._device = "cuda"
+            print("[YOLODetector] Using CUDA GPU ✅")
         else:
             self._device = "cpu"
-            print("[YOLODetector] Using CPU (no MPS available)")
+            print("[YOLODetector] Using CPU")
+
+        self._use_fp16 = USE_FP16 and self._device in ("mps", "cuda")
+        if self._use_fp16:
+            print("[YOLODetector] FP16 half-precision enabled ✅")
+
+        # Warmup — eliminates the first-frame latency spike
+        self._warmup()
         print("[YOLODetector] Model ready.")
 
     # ── Public API ────────────────────────────────────────────
@@ -78,28 +91,23 @@ class YOLODetector:
     def detect(self, display_frame, native_frame=None,
                frame_w: int = None, frame_h: int = None):
         """
-        Run four-pass detection.
+        Run multi-pass detection with WBF fusion.
 
         Parameters
         ----------
-        display_frame : np.ndarray
-            BGR frame at display resolution (e.g. 1280×720).
-            Passes 1 & 2 run on this.
-        native_frame : np.ndarray, optional
-            BGR frame at native (4K) resolution.
-            Pass 3 zone crops run on this if provided.
-            Falls back to display_frame if None.
+        display_frame : np.ndarray  BGR at display resolution (720p)
+        native_frame  : np.ndarray  BGR at native resolution (4K), optional
 
         Returns list of dicts: {bbox, cls_id, label, conf, cx, cy}
         All bboxes are in display_frame coordinate space.
         """
-        dh, dw = display_frame.shape[:2]
-        src = native_frame if native_frame is not None else display_frame
-        sh, sw = src.shape[:2]
+        t_start = time.perf_counter()
 
-        # Scale factors from native → display space
-        sx_n2d = dw / sw   # native-x → display-x
-        sy_n2d = dh / sh   # native-y → display-y
+        dh, dw = display_frame.shape[:2]
+        src  = native_frame if native_frame is not None else display_frame
+        sh, sw = src.shape[:2]
+        sx_n2d = dw / sw
+        sy_n2d = dh / sh
 
         all_dets = []
 
@@ -135,25 +143,20 @@ class YOLODetector:
                                   imgsz=TILE_SIZE,
                                   conf=self.conf_threshold,
                                   ox=tx1, oy=ty1,
-                                  sx=cw/TILE_SIZE, sy=ch/TILE_SIZE)
+                                  sx=cw / TILE_SIZE, sy=ch / TILE_SIZE)
             )
 
         # ── Pass 3: per-lane zone crops from NATIVE frame ─────
-        # Using the original 4K pixels gives YOLO 3-9× more pixel area
-        # per vehicle compared to the 720p display frame.
         for zone_name, frac_pts in LANE_ZONES.items():
             xs = [p[0] for p in frac_pts]
             ys = [p[1] for p in frac_pts]
 
             if zone_name == "South":
-                # South zone sits at the bottom edge; cars queue above.
-                # Use large upward padding to capture cars approaching the line.
                 PAD_X  = int(sw * 0.12)
-                PAD_YU = int(sh * 0.22)   # big upward pad
+                PAD_YU = int(sh * 0.22)
                 PAD_YD = int(sh * 0.02)
                 zone_conf = 0.03
             elif zone_name == "North":
-                # North zone: cars at far end are tiny even at 4K.
                 PAD_X  = int(sw * 0.06)
                 PAD_YU = int(sh * 0.05)
                 PAD_YD = int(sh * 0.05)
@@ -177,14 +180,17 @@ class YOLODetector:
             if ch <= 0 or cw <= 0:
                 continue
 
-            # Upscale the native crop to CROP_IMGSZ for inference
-            infer = cv2.resize(crop, (CROP_IMGSZ, CROP_IMGSZ),
-                               interpolation=cv2.INTER_LINEAR)
+            # Optional Real-ESRGAN super resolution
+            if self._sr_enabled and self._sr_enhancer is not None:
+                try:
+                    crop = self._sr_enhancer.enhance(crop)
+                    ch, cw = crop.shape[:2]
+                except Exception:
+                    pass  # SR failed — continue with original crop
 
-            # Scale factors: infer → native → display
-            # infer → crop: cw/CROP_IMGSZ, ch/CROP_IMGSZ
-            # crop origin (native): x1n, y1n
-            # native → display: sx_n2d, sy_n2d
+            infer = cv2.resize(crop, (CROP_IMGSZ, CROP_IMGSZ),
+                               interpolation=cv2.INTER_CUBIC)
+
             crop_sx = cw / CROP_IMGSZ
             crop_sy = ch / CROP_IMGSZ
 
@@ -192,18 +198,16 @@ class YOLODetector:
                 infer, 0, 0, CROP_IMGSZ, CROP_IMGSZ,
                 imgsz=CROP_IMGSZ,
                 conf=zone_conf,
-                ox=0, oy=0, sx=1.0, sy=1.0   # coords in infer space
+                ox=0, oy=0, sx=1.0, sy=1.0
             )
 
             # Map infer → display
             for d in raw_dets:
                 ix1, iy1, ix2, iy2 = d["bbox"]
-                # infer → native crop
                 nx1 = ix1 * crop_sx + x1n
                 ny1 = iy1 * crop_sy + y1n
                 nx2 = ix2 * crop_sx + x1n
                 ny2 = iy2 * crop_sy + y1n
-                # native → display
                 bx1 = max(0, min(dw-1, int(nx1 * sx_n2d)))
                 by1 = max(0, min(dh-1, int(ny1 * sy_n2d)))
                 bx2 = max(0, min(dw,   int(nx2 * sx_n2d)))
@@ -216,24 +220,56 @@ class YOLODetector:
 
             all_dets.extend(raw_dets)
 
-        # ── Deduplicate ───────────────────────────────────────
-        return self._nms(all_dets, NMS_IOU_THRESHOLD)
+        # ── Weighted Box Fusion ───────────────────────────────
+        fused = self._wbf(all_dets, dw, dh)
+
+        self._last_latency_ms = (time.perf_counter() - t_start) * 1000
+        return fused
+
+    def toggle_sr(self) -> bool:
+        """Toggle Real-ESRGAN super resolution on/off. Returns new state."""
+        if not self._sr_enabled:
+            # Lazy-load SR enhancer
+            if self._sr_enhancer is None:
+                try:
+                    from detector.super_resolution import SuperResolutionEnhancer
+                    self._sr_enhancer = SuperResolutionEnhancer(device=self._device)
+                    print("[YOLODetector] SR enhancer loaded ✅")
+                except Exception as e:
+                    print(f"[YOLODetector] SR load failed: {e}")
+                    return False
+            self._sr_enabled = True
+        else:
+            self._sr_enabled = False
+        print(f"[YOLODetector] Super Resolution: {'ON' if self._sr_enabled else 'OFF'}")
+        return self._sr_enabled
+
+    @property
+    def latency_ms(self) -> float:
+        return self._last_latency_ms
+
+    @property
+    def sr_enabled(self) -> bool:
+        return self._sr_enabled
 
     # ── Internal helpers ──────────────────────────────────────
+
+    def _warmup(self):
+        """Run a dummy inference to pre-compile MPS/CUDA kernels."""
+        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+        try:
+            self.model(dummy, verbose=False, imgsz=640,
+                       device=self._device,
+                       half=self._use_fp16)
+        except Exception:
+            pass
 
     def _infer_patch(self, frame,
                      x1: int, y1: int, x2: int, y2: int,
                      imgsz: int, conf: float,
                      ox: int = 0, oy: int = 0,
                      sx: float = 1.0, sy: float = 1.0) -> list:
-        """
-        Run YOLO on `frame[y1:y2, x1:x2]` (or the whole `frame` when the
-        region covers it entirely).  Returned bboxes are mapped back to the
-        caller's coordinate space via (ox, oy, sx, sy):
-
-            display_x = bbox_x * sx + ox
-            display_y = bbox_y * sy + oy
-        """
+        """Run YOLO on frame[y1:y2, x1:x2]. Map bboxes to output space."""
         fh, fw = frame.shape[:2]
         crop   = frame[y1:y2, x1:x2]
         ch, cw = crop.shape[:2]
@@ -242,11 +278,11 @@ class YOLODetector:
 
         is_full = (x1 == 0 and y1 == 0 and x2 == fw and y2 == fh)
         if is_full:
-            infer     = crop
-            local_sx  = sx
-            local_sy  = sy
-            local_ox  = ox
-            local_oy  = oy
+            infer    = crop
+            local_sx = sx
+            local_sy = sy
+            local_ox = ox
+            local_oy = oy
         else:
             infer    = cv2.resize(crop, (imgsz, imgsz),
                                   interpolation=cv2.INTER_LINEAR)
@@ -261,6 +297,7 @@ class YOLODetector:
             imgsz=imgsz,
             device=self._device,
             conf=conf,
+            half=self._use_fp16,
         )[0]
 
         detections = []
@@ -270,8 +307,6 @@ class YOLODetector:
                 continue
 
             bx1, by1, bx2, by2 = box.xyxy[0].tolist()
-
-            # Map to output coordinate space
             out_x1 = int(bx1 * local_sx) + local_ox
             out_y1 = int(by1 * local_sy) + local_oy
             out_x2 = int(bx2 * local_sx) + local_ox
@@ -295,32 +330,97 @@ class YOLODetector:
 
         return detections
 
-    @staticmethod
-    def _nms(detections: list, iou_threshold: float) -> list:
-        """Greedy IoU-NMS — keeps highest-confidence box when boxes overlap."""
+    def _wbf(self, detections: list, fw: int, fh: int) -> list:
+        """
+        Weighted Box Fusion — fuses overlapping detections from multi-pass
+        inference into averaged, confidence-weighted boxes.
+
+        Normalises to [0,1], calls ensemble_boxes.weighted_boxes_fusion,
+        then maps back to pixel space.
+        """
         if not detections:
             return []
 
+        try:
+            from ensemble_boxes import weighted_boxes_fusion
+        except ImportError:
+            # Fallback to greedy NMS if library not available
+            return self._nms_fallback(detections)
+
+        # Group by class (WBF is class-agnostic by default but we do per-class)
+        boxes_list, scores_list, labels_list = [], [], []
+
+        norm_boxes = []
+        scores     = []
+        labels     = []
+
+        for d in detections:
+            x1, y1, x2, y2 = d["bbox"]
+            # Normalise to [0, 1]
+            nx1 = max(0.0, x1 / fw)
+            ny1 = max(0.0, y1 / fh)
+            nx2 = min(1.0, x2 / fw)
+            ny2 = min(1.0, y2 / fh)
+            if nx2 <= nx1 or ny2 <= ny1:
+                continue
+            norm_boxes.append([nx1, ny1, nx2, ny2])
+            scores.append(d["conf"])
+            labels.append(float(d["cls_id"]))
+
+        if not norm_boxes:
+            return []
+
+        boxes_list  = [norm_boxes]
+        scores_list = [scores]
+        labels_list = [labels]
+
+        fused_boxes, fused_scores, fused_labels = weighted_boxes_fusion(
+            boxes_list, scores_list, labels_list,
+            iou_thr=WBF_IOU_THRESHOLD,
+            skip_box_thr=WBF_SKIP_BOX_THR,
+            conf_type="avg",
+        )
+
+        result = []
+        for (nx1, ny1, nx2, ny2), cf, cls_id in zip(
+                fused_boxes, fused_scores, fused_labels):
+            bx1 = max(0, min(fw-1, int(nx1 * fw)))
+            by1 = max(0, min(fh-1, int(ny1 * fh)))
+            bx2 = max(0, min(fw,   int(nx2 * fw)))
+            by2 = max(0, min(fh,   int(ny2 * fh)))
+            if bx2 <= bx1 or by2 <= by1:
+                continue
+            cls_id = int(cls_id)
+            result.append({
+                "bbox":   (bx1, by1, bx2, by2),
+                "cls_id": cls_id,
+                "label":  self.CLASS_NAMES.get(cls_id, "vehicle"),
+                "conf":   round(float(cf), 2),
+                "cx":     (bx1 + bx2) // 2,
+                "cy":     (by1 + by2) // 2,
+            })
+
+        return result
+
+    def _nms_fallback(self, detections: list) -> list:
+        """Greedy IoU-NMS fallback when ensemble_boxes is unavailable."""
         dets = sorted(detections, key=lambda d: d["conf"], reverse=True)
         kept = []
-
         while dets:
             best = dets.pop(0)
             kept.append(best)
             bx1, by1, bx2, by2 = best["bbox"]
-
             remaining = []
             for d in dets:
                 dx1, dy1, dx2, dy2 = d["bbox"]
                 ix1 = max(bx1, dx1); iy1 = max(by1, dy1)
                 ix2 = min(bx2, dx2); iy2 = min(by2, dy2)
-                inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
-                ab    = (bx2 - bx1) * (by2 - by1)
-                ad    = (dx2 - dx1) * (dy2 - dy1)
+                inter = max(0, ix2-ix1) * max(0, iy2-iy1)
+                ab    = (bx2-bx1) * (by2-by1)
+                ad    = (dx2-dx1) * (dy2-dy1)
                 union = ab + ad - inter
                 iou   = inter / union if union > 0 else 0.0
-                if iou < iou_threshold:
+                if iou < 0.45:
                     remaining.append(d)
             dets = remaining
-
         return kept

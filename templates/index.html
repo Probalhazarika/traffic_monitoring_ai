@@ -3,14 +3,84 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Traffic Monitoring – Smart Signal Optimization</title>
+  <title>AI Traffic Monitoring – Research Edition</title>
   <meta name="description"
-        content="Real-time AI traffic monitoring and adaptive signal control using YOLOv8." />
+        content="Research-grade AI traffic monitoring: YOLOv8 · WBF · Optical Flow · Real-ESRGAN · Heatmap." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
         rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    /* ── Research panel additions ── */
+    .perf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .perf-cell {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .perf-cell .val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #a78bfa;
+    }
+    .perf-cell .lbl {
+      font-size: 0.68rem;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+    .badge-pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.70rem;
+      font-weight: 600;
+      margin: 2px 3px;
+    }
+    .badge-on  { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade8044; }
+    .badge-off { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid #f8717144; }
+    .toggle-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .btn-toggle {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: #c9d1d9;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-toggle:hover { background: rgba(255,255,255,0.10); }
+    .btn-toggle.active { border-color: #4ade80; color: #4ade80; }
+    .hybrid-bar-wrap {
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      height: 5px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .hybrid-bar {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #4ade80, #f59e0b, #ef4444);
+      transition: width 0.4s ease;
+    }
+  </style>
 </head>
 
 <body>
@@ -20,12 +90,13 @@
       <span class="brand-icon">🚦</span>
       <div>
         <h1 class="brand-title">AI Traffic Monitor</h1>
-        <span class="brand-sub">Smart Signal Optimization · YOLOv8</span>
+        <span class="brand-sub">Research Edition · YOLOv8 · WBF · Optical Flow · Heatmap</span>
       </div>
     </div>
     <div class="topbar-meta">
       <div class="meta-chip" id="chip-fps">FPS: –</div>
       <div class="meta-chip" id="chip-frame">Frame: –</div>
+      <div class="meta-chip" id="chip-latency">Latency: –</div>
       <div class="status-dot" id="status-dot" title="System status"></div>
     </div>
   </header>
@@ -39,10 +110,14 @@
         <span class="card-icon">📹</span>
         <h2 class="card-title">Live Detection Feed</h2>
         <span class="badge badge-live">LIVE</span>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <button class="btn-toggle" id="btn-heatmap" onclick="toggleHeatmap()">🌡️ Heatmap</button>
+          <button class="btn-toggle" id="btn-sr"      onclick="toggleSR()">✨ Super-Res</button>
+        </div>
       </div>
       <div class="video-wrapper">
         <img id="video-stream" src="/video_feed" alt="Traffic video with bounding boxes" />
-        <div class="video-overlay-label">YOLOv8 · Vehicle Detection</div>
+        <div class="video-overlay-label">YOLOv8 · WBF · Vehicle Detection</div>
       </div>
     </section>
 
@@ -79,6 +154,26 @@
       </div>
     </section>
 
+    <!-- ── Performance Benchmarking ── -->
+    <section class="card" style="grid-column: span 2;" aria-label="Performance benchmarking">
+      <div class="card-header">
+        <span class="card-icon">⚡</span>
+        <h2 class="card-title">Performance Benchmarking</h2>
+        <div id="feature-badges" style="margin-left:auto;"></div>
+      </div>
+      <div class="perf-grid">
+        <div class="perf-cell"><div class="val" id="p-fps">–</div><div class="lbl">Frames / sec</div></div>
+        <div class="perf-cell"><div class="val" id="p-latency">–</div><div class="lbl">Detection latency (ms)</div></div>
+        <div class="perf-cell"><div class="val" id="p-dets">–</div><div class="lbl">Avg detections / frame</div></div>
+      </div>
+      <div style="font-size:0.75rem; color:#8b949e; margin-bottom:6px;">
+        Confidence Score Distribution (all detections)
+      </div>
+      <div class="chart-wrap" style="height:130px;">
+        <canvas id="chart-conf" aria-label="Confidence histogram"></canvas>
+      </div>
+    </section>
+
     <!-- ── Line Chart ── -->
     <section class="card card-line" aria-label="Historical traffic trend">
       <div class="card-header">
@@ -101,12 +196,8 @@
         <table class="log-table" id="log-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Time</th>
-              <th>Lane</th>
-              <th>Vehicles</th>
-              <th>Density</th>
-              <th>Green (s)</th>
+              <th>#</th><th>Time</th><th>Lane</th>
+              <th>Vehicles</th><th>Density</th><th>Green (s)</th>
             </tr>
           </thead>
           <tbody id="log-tbody">
@@ -120,17 +211,17 @@
 
   <!-- ═══ FOOTER ═════════════════════════════════ -->
   <footer class="footer">
-    AI-Based Smart Traffic Monitoring &amp; Signal Optimization System · YOLOv8 · Flask · SQLite
+    AI Traffic Monitoring · Research Edition · YOLOv8 · WBF · Optical Flow · Real-ESRGAN · Flask · SQLite
   </footer>
 
   <!-- ═══ SCRIPTS ════════════════════════════════ -->
   <script>
-  // ─── Chart setup ─────────────────────────────
+  // ─── Chart colours ────────────────────────────
   const LANE_COLORS = [
-    "rgba(74, 222, 128, 0.85)",   // green
-    "rgba(251, 146, 60, 0.85)",   // orange
-    "rgba(96, 165, 250, 0.85)",   // blue
-    "rgba(232, 121, 249, 0.85)",  // purple
+    "rgba(74, 222, 128, 0.85)",
+    "rgba(251, 146, 60, 0.85)",
+    "rgba(96, 165, 250, 0.85)",
+    "rgba(232, 121, 249, 0.85)",
   ];
   const LANE_BORDERS = [
     "rgb(74, 222, 128)",
@@ -143,64 +234,48 @@
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        labels: { color: "#c9d1d9", font: { family: "Inter", size: 12 } }
-      }
+      legend: { labels: { color: "#c9d1d9", font: { family: "Inter", size: 12 } } }
     },
     scales: {
-      x: {
-        ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } },
-        grid:  { color: "rgba(255,255,255,0.06)" }
-      },
-      y: {
-        ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } },
-        grid:  { color: "rgba(255,255,255,0.06)" },
-        beginAtZero: true
-      }
+      x: { ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } }, grid: { color: "rgba(255,255,255,0.06)" } },
+      y: { ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } }, grid: { color: "rgba(255,255,255,0.06)" }, beginAtZero: true }
     }
   };
 
   // Bar chart
-  const barCtx  = document.getElementById("chart-bar").getContext("2d");
-  const barChart = new Chart(barCtx, {
+  const barChart = new Chart(document.getElementById("chart-bar").getContext("2d"), {
     type: "bar",
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Vehicles",
-        data: [],
-        backgroundColor: LANE_COLORS,
-        borderColor: LANE_BORDERS,
-        borderWidth: 2,
-        borderRadius: 6,
-      }]
-    },
+    data: { labels: [], datasets: [{ label: "Vehicles", data: [], backgroundColor: LANE_COLORS, borderColor: LANE_BORDERS, borderWidth: 2, borderRadius: 6 }] },
     options: { ...chartDefaults }
   });
 
   // Line chart
-  const lineCtx  = document.getElementById("chart-line").getContext("2d");
-  const lineChart = new Chart(lineCtx, {
+  const lineChart = new Chart(document.getElementById("chart-line").getContext("2d"), {
     type: "line",
     data: { labels: [], datasets: [] },
+    options: { ...chartDefaults, elements: { point: { radius: 2 }, line: { tension: 0.4 } } }
+  });
+
+  // Confidence histogram
+  const confBuckets = ["0-10%","10-20%","20-30%","30-40%","40-50%","50-60%","60-70%","70-80%","80-90%","90-100%"];
+  const confChart = new Chart(document.getElementById("chart-conf").getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: confBuckets,
+      datasets: [{ label: "Detections", data: new Array(10).fill(0),
+        backgroundColor: "rgba(167,139,250,0.6)", borderColor: "#a78bfa", borderWidth: 1, borderRadius: 4 }]
+    },
     options: {
       ...chartDefaults,
-      elements: {
-        point: { radius: 2 },
-        line:  { tension: 0.4 }
-      }
+      plugins: { legend: { display: false } },
     }
   });
 
   // ─── Density helpers ──────────────────────────
   function densityClass(d) {
-    return d === "High" ? "density-high"
-         : d === "Medium" ? "density-medium"
-         : "density-low";
+    return d === "High" ? "density-high" : d === "Medium" ? "density-medium" : "density-low";
   }
-  function signalClass(s) {
-    return s === "GREEN" ? "signal-green" : "signal-red";
-  }
+  function signalClass(s) { return s === "GREEN" ? "signal-green" : "signal-red"; }
 
   // ─── Live stats polling ───────────────────────
   let laneOrder = [];
@@ -210,12 +285,11 @@
       const res  = await fetch("/api/stats");
       const data = await res.json();
 
-      // Update meta chips
       document.getElementById("chip-fps").textContent   = `FPS: ${data.fps}`;
       document.getElementById("chip-frame").textContent = `Frame: ${data.frame_count}`;
       document.getElementById("status-dot").className   = "status-dot online";
 
-      // Build lane cards
+      // Lane cards
       const lanesGrid = document.getElementById("lanes-grid");
       if (data.lanes.length > 0 && lanesGrid.children.length === 0) {
         laneOrder = data.lanes.map(l => l.lane);
@@ -227,48 +301,97 @@
             <div class="lane-label" style="color:${LANE_BORDERS[i]}">${l.lane}</div>
             <div class="lane-count" id="lane-count-${i}">–</div>
             <div class="lane-density ${densityClass(l.density)}" id="lane-density-${i}">–</div>
+            <div class="hybrid-bar-wrap"><div class="hybrid-bar" id="hybrid-bar-${i}" style="width:0%"></div></div>
           `;
           lanesGrid.appendChild(card);
         });
       }
 
-      // Update lane cards + bar chart
       const labels = [], counts = [];
       data.lanes.forEach((l, i) => {
         const countEl   = document.getElementById(`lane-count-${i}`);
         const densityEl = document.getElementById(`lane-density-${i}`);
         if (countEl)   countEl.textContent = l.count;
-        if (densityEl) {
-          densityEl.textContent = l.density;
-          densityEl.className   = `lane-density ${densityClass(l.density)}`;
-        }
+        if (densityEl) { densityEl.textContent = l.density; densityEl.className = `lane-density ${densityClass(l.density)}`; }
         labels.push(l.lane);
         counts.push(l.count);
       });
-      barChart.data.labels            = labels;
-      barChart.data.datasets[0].data  = counts;
+      barChart.data.labels           = labels;
+      barChart.data.datasets[0].data = counts;
       barChart.update("none");
 
-      // Signal timing panel
-      const sigList = document.getElementById("signal-list");
-      sigList.innerHTML = data.lanes.map((l, i) => `
+      // Signal panel
+      document.getElementById("signal-list").innerHTML = data.lanes.map((l, i) => `
         <div class="signal-row">
-          <div class="signal-indicator ${signalClass(l.signal)}">
-            <span>${l.signal}</span>
-          </div>
+          <div class="signal-indicator ${signalClass(l.signal)}"><span>${l.signal}</span></div>
           <div class="signal-info">
             <span class="signal-lane" style="color:${LANE_BORDERS[i]}">${l.lane}</span>
             <span class="signal-time">${l.green_time}s green</span>
           </div>
           <div class="signal-bar-wrap">
-            <div class="signal-bar" style="width:${Math.min(100, (l.green_time/60)*100)}%;
-              background:${l.signal === 'GREEN' ? '#4ade80' : '#ef4444'}"></div>
+            <div class="signal-bar" style="width:${Math.min(100,(l.green_time/60)*100)}%;
+              background:${l.signal==='GREEN'?'#4ade80':'#ef4444'}"></div>
           </div>
         </div>
       `).join("");
 
-    } catch (e) {
+    } catch(e) {
       document.getElementById("status-dot").className = "status-dot offline";
+    }
+  }
+
+  // ─── Performance stats polling ────────────────
+  async function fetchPerf() {
+    try {
+      const res  = await fetch("/api/perf");
+      const perf = await res.json();
+
+      document.getElementById("chip-latency").textContent = `Latency: ${perf.detection_latency_ms}ms`;
+      document.getElementById("p-fps").textContent     = document.getElementById("chip-fps").textContent.replace("FPS: ","");
+      document.getElementById("p-latency").textContent = `${perf.detection_latency_ms} ms`;
+      document.getElementById("p-dets").textContent    = perf.avg_detections;
+
+      // Confidence histogram
+      if (perf.conf_histogram && perf.conf_histogram.length === 10) {
+        confChart.data.datasets[0].data = perf.conf_histogram;
+        confChart.update("none");
+      }
+
+      // Feature badges
+      const badges = [
+        { label: "WBF",        on: perf.wbf_enabled  },
+        { label: "FP16",       on: perf.fp16_enabled  },
+        { label: "Heatmap",    on: perf.heatmap_enabled },
+        { label: "Super-Res",  on: perf.sr_enabled    },
+      ];
+      document.getElementById("feature-badges").innerHTML = badges.map(b =>
+        `<span class="badge-pill ${b.on ? 'badge-on' : 'badge-off'}">${b.label}: ${b.on ? 'ON' : 'OFF'}</span>`
+      ).join("");
+
+      // Sync toggle button states
+      const btnHM = document.getElementById("btn-heatmap");
+      const btnSR = document.getElementById("btn-sr");
+      if (perf.heatmap_enabled) btnHM.classList.add("active"); else btnHM.classList.remove("active");
+      if (perf.sr_enabled)      btnSR.classList.add("active"); else btnSR.classList.remove("active");
+
+    } catch(e) { /* silently ignore */ }
+  }
+
+  // ─── Toggle handlers ──────────────────────────
+  async function toggleHeatmap() {
+    await fetch("/api/toggle_heatmap", { method: "POST" });
+    fetchPerf();
+  }
+  async function toggleSR() {
+    const btn = document.getElementById("btn-sr");
+    btn.textContent = "⏳ Loading…";
+    btn.disabled = true;
+    try {
+      await fetch("/api/toggle_sr", { method: "POST" });
+    } finally {
+      btn.textContent = "✨ Super-Res";
+      btn.disabled = false;
+      fetchPerf();
     }
   }
 
@@ -279,27 +402,20 @@
     try {
       const res  = await fetch("/api/logs?limit=200");
       const logs = await res.json();
-
       if (!logs.length) return;
 
-      // Group by lane
       const byLane = {};
       logs.reverse().forEach(row => {
         if (!byLane[row.lane]) byLane[row.lane] = [];
         byLane[row.lane].push({ t: row.timestamp, v: row.vehicle_count });
       });
 
-      // Use timestamps of first lane as x-axis labels (last 20)
       const firstLane = Object.values(byLane)[0] || [];
-      const labels = firstLane.slice(-20).map(r =>
-        r.t.split("T")[1] || r.t
-      );
-
-      const datasets = Object.entries(byLane).map(([lane, points], i) => ({
-        label: lane,
-        data:  points.slice(-20).map(p => p.v),
-        borderColor:     LANE_BORDERS[i % LANE_BORDERS.length],
-        backgroundColor: LANE_COLORS[i % LANE_COLORS.length].replace("0.85", "0.15"),
+      const labels    = firstLane.slice(-20).map(r => r.t.split("T")[1] || r.t);
+      const datasets  = Object.entries(byLane).map(([lane, pts], i) => ({
+        label: lane, data: pts.slice(-20).map(p => p.v),
+        borderColor: LANE_BORDERS[i % LANE_BORDERS.length],
+        backgroundColor: LANE_COLORS[i % LANE_COLORS.length].replace("0.85","0.15"),
         fill: true,
       }));
 
@@ -307,30 +423,26 @@
       lineChart.data.datasets = datasets;
       lineChart.update();
 
-      // Populate log table
       const tbody = document.getElementById("log-tbody");
       tbody.innerHTML = logs.slice(-30).reverse().map(row => `
         <tr>
           <td class="mono">${row.id}</td>
-          <td class="mono">${row.timestamp.replace("T", " ")}</td>
+          <td class="mono">${row.timestamp.replace("T"," ")}</td>
           <td>${row.lane}</td>
           <td><strong>${row.vehicle_count}</strong></td>
           <td><span class="badge-density ${densityClass(row.density)}">${row.density}</span></td>
           <td class="mono">${row.green_time}s</td>
         </tr>
       `).join("");
-
-    } catch (e) {
-      console.error("History load error:", e);
-    } finally {
-      btn.textContent = "↺ Refresh";
-    }
+    } catch(e) { console.error("History load error:", e); }
+    finally { btn.textContent = "↺ Refresh"; }
   }
 
   // ─── Bootstrap ───────────────────────────────
   fetchStats();
+  fetchPerf();
   setInterval(fetchStats, 2000);
-
+  setInterval(fetchPerf,  2000);
   loadHistory();
   setInterval(loadHistory, 10000);
   </script>

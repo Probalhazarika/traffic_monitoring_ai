@@ -6,3 +6,7 @@ numpy>=1.24.0
 pandas>=2.0.0
 matplotlib>=3.7.0
 Pillow>=10.0.0
+ensemble-boxes>=1.0.0
+# Phase 2 — Super Resolution (optional, install when needed)
+# realesrgan>=0.3.0
+# basicsr>=1.4.2

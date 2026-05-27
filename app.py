@@ -41,7 +41,7 @@ def _generate_frames():
                    b"Content-Type: image/jpeg\r\n\r\n"
                    + frame_bytes +
                    b"\r\n")
-        time.sleep(0.033)   # ~30 fps cap
+        time.sleep(0.033)
 
 
 @app.route("/video_feed")
@@ -56,7 +56,7 @@ def video_feed():
 
 @app.route("/api/stats")
 def api_stats():
-    """Current frame statistics — polled every 2 s by dashboard JS."""
+    """Current frame statistics — polled every 2s by dashboard JS."""
     with state_lock:
         schedule = dict(state["signal_schedule"])
         fps      = state["fps"]
@@ -67,11 +67,11 @@ def api_stats():
         if lane.startswith("__"):
             continue
         lanes.append({
-            "lane":       lane,
-            "count":      info["count"],
-            "density":    info["density"],
-            "green_time": info["green_time"],
-            "signal":     info["signal"],
+            "lane":         lane,
+            "count":        info["count"],
+            "density":      info["density"],
+            "green_time":   info["green_time"],
+            "signal":       info["signal"],
         })
 
     return jsonify({
@@ -79,6 +79,33 @@ def api_stats():
         "fps":         fps,
         "frame_count": fc,
     })
+
+
+@app.route("/api/perf")
+def api_perf():
+    """Research benchmarking metrics."""
+    with state_lock:
+        perf = dict(state["perf_stats"])
+        heatmap_on = state["heatmap_enabled"]
+    perf["heatmap_enabled"] = heatmap_on
+    return jsonify(perf)
+
+
+@app.route("/api/toggle_heatmap", methods=["POST"])
+def api_toggle_heatmap():
+    """Toggle the heatmap overlay on/off."""
+    with state_lock:
+        current = state["heatmap_enabled"]
+        state["heatmap_enabled"] = not current
+        new_state = state["heatmap_enabled"]
+    return jsonify({"heatmap_enabled": new_state})
+
+
+@app.route("/api/toggle_sr", methods=["POST"])
+def api_toggle_sr():
+    """Toggle Real-ESRGAN super resolution on/off."""
+    new_state = processor.detector.toggle_sr()
+    return jsonify({"sr_enabled": new_state})
 
 
 @app.route("/api/logs")
@@ -98,7 +125,6 @@ def api_summary():
 
 @app.route("/api/lane_map")
 def api_lane_map():
-    """Return detected lane polygon coordinates (for debugging / visualisation)."""
     with state_lock:
         polygons   = dict(state.get("lane_polygons", {}))
         calibrated = state.get("calibrated", False)
@@ -111,10 +137,7 @@ def api_lane_map():
 
 @app.route("/api/recalibrate", methods=["POST"])
 def api_recalibrate():
-    """Trigger a fresh lane calibration (reads next N frames from the processor)."""
     processor.lane_det.calibrated = False
-    # The processor loop will re-run calibration on its next iteration
-    # (graceful — it checks the calibrated flag)
     return jsonify({"status": "recalibration requested"})
 
 
@@ -124,7 +147,7 @@ def api_recalibrate():
 
 if __name__ == "__main__":
     print(f"\n{'='*50}")
-    print(f"  Traffic Monitoring Dashboard")
+    print(f"  AI Traffic Monitoring — Research Edition")
     print(f"  Open: http://localhost:{FLASK_PORT}")
     print(f"{'='*50}\n")
     app.run(host=FLASK_HOST, port=FLASK_PORT, debug=False,

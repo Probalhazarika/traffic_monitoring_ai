@@ -1,0 +1,14 @@
+# VisDrone → YOLO fine-tuning dataset config
+# Used by: python training/train.py
+
+path: ./training/visdrone_yolo   # dataset root
+train: images/train
+val:   images/val
+
+# Classes (subset of COCO matching VEHICLE_CLASSES in config.py)
+nc: 4
+names:
+  0: car
+  1: motorcycle
+  2: bus
+  3: truck
