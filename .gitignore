@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# YOLO weights and deep learning
+*.pt
+*.onnx
+
+# Media (Videos & Images)
+videos/
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+!calibration_frame.jpg
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Databases
+database/
+*.sqlite
+*.db

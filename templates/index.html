@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Traffic Monitoring – Smart Signal Optimization</title>
+  <meta name="description"
+        content="Real-time AI traffic monitoring and adaptive signal control using YOLOv8." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+        rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+  <!-- ═══ HEADER ════════════════════════════════ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-icon">🚦</span>
+      <div>
+        <h1 class="brand-title">AI Traffic Monitor</h1>
+        <span class="brand-sub">Smart Signal Optimization · YOLOv8</span>
+      </div>
+    </div>
+    <div class="topbar-meta">
+      <div class="meta-chip" id="chip-fps">FPS: –</div>
+      <div class="meta-chip" id="chip-frame">Frame: –</div>
+      <div class="status-dot" id="status-dot" title="System status"></div>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN GRID ══════════════════════════════ -->
+  <main class="dashboard-grid">
+
+    <!-- ── Video Feed ── -->
+    <section class="card card-video" aria-label="Live video feed">
+      <div class="card-header">
+        <span class="card-icon">📹</span>
+        <h2 class="card-title">Live Detection Feed</h2>
+        <span class="badge badge-live">LIVE</span>
+      </div>
+      <div class="video-wrapper">
+        <img id="video-stream" src="/video_feed" alt="Traffic video with bounding boxes" />
+        <div class="video-overlay-label">YOLOv8 · Vehicle Detection</div>
+      </div>
+    </section>
+
+    <!-- ── Lane Cards ── -->
+    <section class="card card-lanes" aria-label="Lane statistics">
+      <div class="card-header">
+        <span class="card-icon">🛣️</span>
+        <h2 class="card-title">Lane Statistics</h2>
+      </div>
+      <div class="lanes-grid" id="lanes-grid">
+        <!-- injected by JS -->
+      </div>
+    </section>
+
+    <!-- ── Bar Chart ── -->
+    <section class="card card-bar" aria-label="Vehicle count per lane">
+      <div class="card-header">
+        <span class="card-icon">📊</span>
+        <h2 class="card-title">Vehicle Count per Lane</h2>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-bar" aria-label="Bar chart of vehicle counts"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Signal Timing ── -->
+    <section class="card card-signal" aria-label="Signal timing">
+      <div class="card-header">
+        <span class="card-icon">🚦</span>
+        <h2 class="card-title">Signal Timing (seconds)</h2>
+      </div>
+      <div class="signal-list" id="signal-list">
+        <!-- injected by JS -->
+      </div>
+    </section>
+
+    <!-- ── Line Chart ── -->
+    <section class="card card-line" aria-label="Historical traffic trend">
+      <div class="card-header">
+        <span class="card-icon">📈</span>
+        <h2 class="card-title">Historical Traffic Trend</h2>
+        <button class="btn-refresh" onclick="loadHistory()" id="btn-hist-refresh">↺ Refresh</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-line" aria-label="Line chart of historical counts"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Log Table ── -->
+    <section class="card card-log" aria-label="Traffic log">
+      <div class="card-header">
+        <span class="card-icon">🗃️</span>
+        <h2 class="card-title">Recent Traffic Logs</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="log-table" id="log-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Time</th>
+              <th>Lane</th>
+              <th>Vehicles</th>
+              <th>Density</th>
+              <th>Green (s)</th>
+            </tr>
+          </thead>
+          <tbody id="log-tbody">
+            <tr><td colspan="6" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══ FOOTER ═════════════════════════════════ -->
+  <footer class="footer">
+    AI-Based Smart Traffic Monitoring &amp; Signal Optimization System · YOLOv8 · Flask · SQLite
+  </footer>
+
+  <!-- ═══ SCRIPTS ════════════════════════════════ -->
+  <script>
+  // ─── Chart setup ─────────────────────────────
+  const LANE_COLORS = [
+    "rgba(74, 222, 128, 0.85)",   // green
+    "rgba(251, 146, 60, 0.85)",   // orange
+    "rgba(96, 165, 250, 0.85)",   // blue
+    "rgba(232, 121, 249, 0.85)",  // purple
+  ];
+  const LANE_BORDERS = [
+    "rgb(74, 222, 128)",
+    "rgb(251, 146, 60)",
+    "rgb(96, 165, 250)",
+    "rgb(232, 121, 249)",
+  ];
+
+  const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: "#c9d1d9", font: { family: "Inter", size: 12 } }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } },
+        grid:  { color: "rgba(255,255,255,0.06)" }
+      },
+      y: {
+        ticks: { color: "#8b949e", font: { family: "Inter", size: 11 } },
+        grid:  { color: "rgba(255,255,255,0.06)" },
+        beginAtZero: true
+      }
+    }
+  };
+
+  // Bar chart
+  const barCtx  = document.getElementById("chart-bar").getContext("2d");
+  const barChart = new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Vehicles",
+        data: [],
+        backgroundColor: LANE_COLORS,
+        borderColor: LANE_BORDERS,
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: { ...chartDefaults }
+  });
+
+  // Line chart
+  const lineCtx  = document.getElementById("chart-line").getContext("2d");
+  const lineChart = new Chart(lineCtx, {
+    type: "line",
+    data: { labels: [], datasets: [] },
+    options: {
+      ...chartDefaults,
+      elements: {
+        point: { radius: 2 },
+        line:  { tension: 0.4 }
+      }
+    }
+  });
+
+  // ─── Density helpers ──────────────────────────
+  function densityClass(d) {
+    return d === "High" ? "density-high"
+         : d === "Medium" ? "density-medium"
+         : "density-low";
+  }
+  function signalClass(s) {
+    return s === "GREEN" ? "signal-green" : "signal-red";
+  }
+
+  // ─── Live stats polling ───────────────────────
+  let laneOrder = [];
+
+  async function fetchStats() {
+    try {
+      const res  = await fetch("/api/stats");
+      const data = await res.json();
+
+      // Update meta chips
+      document.getElementById("chip-fps").textContent   = `FPS: ${data.fps}`;
+      document.getElementById("chip-frame").textContent = `Frame: ${data.frame_count}`;
+      document.getElementById("status-dot").className   = "status-dot online";
+
+      // Build lane cards
+      const lanesGrid = document.getElementById("lanes-grid");
+      if (data.lanes.length > 0 && lanesGrid.children.length === 0) {
+        laneOrder = data.lanes.map(l => l.lane);
+        data.lanes.forEach((l, i) => {
+          const card = document.createElement("div");
+          card.className = "lane-card";
+          card.id = `lane-card-${i}`;
+          card.innerHTML = `
+            <div class="lane-label" style="color:${LANE_BORDERS[i]}">${l.lane}</div>
+            <div class="lane-count" id="lane-count-${i}">–</div>
+            <div class="lane-density ${densityClass(l.density)}" id="lane-density-${i}">–</div>
+          `;
+          lanesGrid.appendChild(card);
+        });
+      }
+
+      // Update lane cards + bar chart
+      const labels = [], counts = [];
+      data.lanes.forEach((l, i) => {
+        const countEl   = document.getElementById(`lane-count-${i}`);
+        const densityEl = document.getElementById(`lane-density-${i}`);
+        if (countEl)   countEl.textContent = l.count;
+        if (densityEl) {
+          densityEl.textContent = l.density;
+          densityEl.className   = `lane-density ${densityClass(l.density)}`;
+        }
+        labels.push(l.lane);
+        counts.push(l.count);
+      });
+      barChart.data.labels            = labels;
+      barChart.data.datasets[0].data  = counts;
+      barChart.update("none");
+
+      // Signal timing panel
+      const sigList = document.getElementById("signal-list");
+      sigList.innerHTML = data.lanes.map((l, i) => `
+        <div class="signal-row">
+          <div class="signal-indicator ${signalClass(l.signal)}">
+            <span>${l.signal}</span>
+          </div>
+          <div class="signal-info">
+            <span class="signal-lane" style="color:${LANE_BORDERS[i]}">${l.lane}</span>
+            <span class="signal-time">${l.green_time}s green</span>
+          </div>
+          <div class="signal-bar-wrap">
+            <div class="signal-bar" style="width:${Math.min(100, (l.green_time/60)*100)}%;
+              background:${l.signal === 'GREEN' ? '#4ade80' : '#ef4444'}"></div>
+          </div>
+        </div>
+      `).join("");
+
+    } catch (e) {
+      document.getElementById("status-dot").className = "status-dot offline";
+    }
+  }
+
+  // ─── History chart ────────────────────────────
+  async function loadHistory() {
+    const btn = document.getElementById("btn-hist-refresh");
+    btn.textContent = "…";
+    try {
+      const res  = await fetch("/api/logs?limit=200");
+      const logs = await res.json();
+
+      if (!logs.length) return;
+
+      // Group by lane
+      const byLane = {};
+      logs.reverse().forEach(row => {
+        if (!byLane[row.lane]) byLane[row.lane] = [];
+        byLane[row.lane].push({ t: row.timestamp, v: row.vehicle_count });
+      });
+
+      // Use timestamps of first lane as x-axis labels (last 20)
+      const firstLane = Object.values(byLane)[0] || [];
+      const labels = firstLane.slice(-20).map(r =>
+        r.t.split("T")[1] || r.t
+      );
+
+      const datasets = Object.entries(byLane).map(([lane, points], i) => ({
+        label: lane,
+        data:  points.slice(-20).map(p => p.v),
+        borderColor:     LANE_BORDERS[i % LANE_BORDERS.length],
+        backgroundColor: LANE_COLORS[i % LANE_COLORS.length].replace("0.85", "0.15"),
+        fill: true,
+      }));
+
+      lineChart.data.labels   = labels;
+      lineChart.data.datasets = datasets;
+      lineChart.update();
+
+      // Populate log table
+      const tbody = document.getElementById("log-tbody");
+      tbody.innerHTML = logs.slice(-30).reverse().map(row => `
+        <tr>
+          <td class="mono">${row.id}</td>
+          <td class="mono">${row.timestamp.replace("T", " ")}</td>
+          <td>${row.lane}</td>
+          <td><strong>${row.vehicle_count}</strong></td>
+          <td><span class="badge-density ${densityClass(row.density)}">${row.density}</span></td>
+          <td class="mono">${row.green_time}s</td>
+        </tr>
+      `).join("");
+
+    } catch (e) {
+      console.error("History load error:", e);
+    } finally {
+      btn.textContent = "↺ Refresh";
+    }
+  }
+
+  // ─── Bootstrap ───────────────────────────────
+  fetchStats();
+  setInterval(fetchStats, 2000);
+
+  loadHistory();
+  setInterval(loadHistory, 10000);
+  </script>
+</body>
+</html>
