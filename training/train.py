@@ -16,6 +16,7 @@
 
 import argparse
 from pathlib import Path
+import torch
 from ultralytics import YOLO
 
 BASE = Path(__file__).parent.parent
@@ -27,6 +28,16 @@ def train(epochs: int = 50, imgsz: int = 1280, batch: int = 8):
     print(f"  Epochs: {epochs}  |  imgsz: {imgsz}  |  batch: {batch}")
     print("=" * 60)
 
+    # Determine device: MPS -> CUDA -> CPU
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+    print(f"  Using device: {device.upper()}")
+    print("=" * 60)
+
     model = YOLO(str(BASE / "yolov8s.pt"))   # start from COCO pretrained
 
     results = model.train(
@@ -34,6 +45,7 @@ def train(epochs: int = 50, imgsz: int = 1280, batch: int = 8):
         epochs      = epochs,
         imgsz       = imgsz,
         batch       = batch,
+        device      = device,
         name        = "visdrone_finetune",
         patience    = 15,           # early stopping
         save        = True,

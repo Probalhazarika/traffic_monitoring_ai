@@ -50,7 +50,7 @@ state = {
     "lane_polygons":    {},
     "calibrated":       False,
     # Research features
-    "heatmap_enabled":  True,
+    "heatmap_enabled":  False,
     "perf_stats":       {       # benchmarking metrics
         "detection_latency_ms":  0.0,
         "avg_detections":        0.0,

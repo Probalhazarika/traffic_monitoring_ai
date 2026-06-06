@@ -30,3 +30,11 @@ videos/
 database/
 *.sqlite
 *.db
+
+# Training Artifacts & Datasets
+runs/
+training_log.txt
+training/visdrone_raw_train/
+training/visdrone_raw_val/
+training/visdrone_yolo/
+run_full_training.sh

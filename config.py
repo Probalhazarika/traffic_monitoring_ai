@@ -7,7 +7,7 @@ import os
 # ── Paths ──────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(BASE_DIR, "videos", "traffic.mp4")
-MODEL_PATH = "yolov8s.pt"   # swap to yolov8s-visdrone.pt after fine-tuning
+MODEL_PATH = "yolov8s-visdrone.pt"   # swap to yolov8s-visdrone.pt after fine-tuning
 DB_PATH    = os.path.join(BASE_DIR, "database", "traffic_data.db")
 
 # ── Research-grade pipeline flags ──────────────────
