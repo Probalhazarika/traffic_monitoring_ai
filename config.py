@@ -95,71 +95,31 @@ ROAD_MASK_POLY = [
 ]
 
 # ══════════════════════════════════════════════════════════════
-#  MANUAL LANE ZONES  ← PRIMARY CONFIGURATION
+#  LANE ZONES  ← AUTO-DETECTED (or set manually to override)
 # ══════════════════════════════════════════════════════════════
-# Define lane polygons manually using fractional (x, y) coordinates.
+# Zone polygons as fractional (x, y) coordinates.
 # x_frac = 0.0 is left edge, 1.0 is right edge.
 # y_frac = 0.0 is top edge,  1.0 is bottom edge.
 #
-# HOW TO SET THIS UP:
-#   1. Run:  python calibration_tool.py
-#   2. Open the saved calibration_frame.jpg
-#   3. Read off the (x_frac, y_frac) corners of each real lane
-#   4. Fill in the dictionary below
+# HOW IT WORKS:
+#   • Leave LANE_ZONES = {} and the AutoLaneDetector runs on first launch.
+#   • Detected zones are saved here automatically (keyed to AUTO_LANE_VIDEO).
+#   • Future launches with the same video skip detection entirely.
+#   • Switch to a new video → detection reruns and zones update automatically.
+#   • Paste coordinates manually here to permanently override auto-detection.
 #
-# If LANE_ZONES is non-empty → used directly (Hough detection skipped).
-# If LANE_ZONES = {}          → falls back to automatic Hough detection.
-#
-# EXAMPLE for a 4-way aerial intersection:
-# LANE_ZONES = {
-#     "Lane 1 (North)": [(0.35, 0.0),  (0.50, 0.0),  (0.50, 0.45), (0.35, 0.45)],
-#     "Lane 2 (South)": [(0.50, 0.55), (0.65, 0.55), (0.65, 1.0),  (0.50, 1.0) ],
-#     "Lane 3 (East)":  [(0.55, 0.35), (1.0,  0.35), (1.0,  0.50), (0.55, 0.50)],
-#     "Lane 4 (West)":  [(0.0,  0.50), (0.45, 0.50), (0.45, 0.65), (0.0,  0.65)],
-# }
-#
-# ── SIGNAL ZONES: cars waiting to go LEFT or STRAIGHT ──────────
-# Only vehicles inside these boxes count toward signal timing.
-# Right-turn lane is EXCLUDED from every box.
-#
-# Measured precisely from calibration_frame.jpg grid overlay.
+# <<AUTO_LANE_START>>
+# AUTO-DETECTED for video: traffic.mp4
+AUTO_LANE_VIDEO = "traffic.mp4"
 LANE_ZONES = {
-    # ── NORTH arm ───────────────────────────────────────────────
-    # Cars travelling SOUTHWARD (downward in frame).
-    # Forward boundary (stop line): y=0.50, x: 0.425 → 0.535
-    # Backward boundary: top of visible road y=0.00
-    "North": [
-        (0.425, 0.00), (0.535, 0.00),
-        (0.535, 0.50), (0.425, 0.50),
-    ],
-
-    # ── SOUTH arm ───────────────────────────────────────────────
-    # Cars travelling NORTHWARD (upward in frame).
-    # Forward boundary (stop line): y=0.90, x: 0.475 → 0.60
-    # Backward boundary: bottom of visible road y=1.00
-    "South": [
-        (0.475, 0.90), (0.600, 0.90),
-        (0.600, 1.00), (0.475, 1.00),
-    ],
-
-    # ── WEST arm ────────────────────────────────────────────────
-    # Cars travelling EASTWARD (rightward in frame).
-    # Forward boundary (stop line): x=0.40, y: 0.65 → 0.90
-    # Backward boundary: left edge of visible road x=0.02
-    "West": [
-        (0.02, 0.65), (0.40, 0.65),
-        (0.40, 0.90), (0.02, 0.90),
-    ],
-
-    # ── EAST arm ────────────────────────────────────────────────
-    # Cars travelling WESTWARD (leftward in frame).
-    # Forward boundary (stop line): x=0.60, y: 0.50 → 0.70
-    # Backward boundary: right edge of visible road x=0.98
-    "East": [
-        (0.60, 0.50), (0.98, 0.50),
-        (0.98, 0.70), (0.60, 0.70),
-    ],
+    "North": [(0.4479, 0.0), (0.5682, 0.0), (0.5682, 0.0824), (0.4479, 0.0824)],
+    "East": [(0.5674, 0.3315), (0.9997, 0.3315), (0.9997, 0.6074), (0.5674, 0.6074)],
+    "South": [(0.0997, 0.3056), (0.8604, 0.3056), (0.8604, 0.9995), (0.0997, 0.9995)],
+    "West": [(0.0, 0.2514), (0.4659, 0.2514), (0.4659, 0.9472), (0.0, 0.9472)],
 }
+# <<AUTO_LANE_END>>
+
+
 
 # ── FREE RIGHT-TURN ZONES (display only, never counted) ─────────
 FREE_TURN_ZONES = {

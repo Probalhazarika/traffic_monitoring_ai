@@ -193,7 +193,7 @@ class VideoProcessor:
                 calib_frames.append(frame)
             else:
                 break
-        self.lane_det.calibrate(calib_frames)
+        self.lane_det.calibrate(calib_frames, video_path=self.video_path)
         with state_lock:
             state["lane_polygons"] = self.lane_det.get_polygons_serializable()
             state["calibrated"]    = True

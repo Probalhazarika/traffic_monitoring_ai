@@ -45,6 +45,13 @@ from config import (
     ROAD_MASK_POLY, LANE_PALETTE, LANE_ZONES, FREE_TURN_ZONES,
 )
 
+# AUTO_LANE_VIDEO is written to config.py after the first auto-detection.
+# It may not exist on a fresh install — handled gracefully below.
+try:
+    from config import AUTO_LANE_VIDEO as _AUTO_LANE_VIDEO
+except ImportError:
+    _AUTO_LANE_VIDEO = ""
+
 # Resolution used internally for CV processing (fast, still detailed enough)
 _CV_W, _CV_H = 1920, 1080
 
@@ -75,17 +82,23 @@ class LaneDetector:
     #  Public API
     # ═══════════════════════════════════════════════════════════════
 
-    def calibrate(self, frames: list) -> bool:
+    def calibrate(self, frames: list, video_path: str = "") -> bool:
         """
         Analyse the first N frames to locate stable lane boundaries.
 
-        Priority:
-          1. If LANE_ZONES is set in config.py → use those directly (recommended).
-          2. Otherwise → run Hough-based auto-detection.
+        Priority order
+        --------------
+        1. LANE_ZONES set in config.py AND video matches → use stored zones.
+           (Covers both hand-crafted zones and previously auto-detected+saved zones.)
+        2. LANE_ZONES empty OR a different video is loaded → run AutoLaneDetector
+           (the new computer-vision pipeline).  Detected zones are saved back to
+           config.py so the next launch skips detection entirely.
+        3. AutoLaneDetector fails → fall back to the legacy Hough-line detector.
 
         Parameters
         ----------
-        frames : list of BGR numpy arrays (raw, full-resolution)
+        frames     : list of BGR numpy arrays (raw, full-resolution)
+        video_path : path to the current video file (used for cache validation)
 
         Returns
         -------
@@ -96,23 +109,55 @@ class LaneDetector:
 
         self._orig_h, self._orig_w = frames[0].shape[:2]
 
-        # ── Priority 1: Manual LANE_ZONES from config ──────────────
-        if LANE_ZONES:
-            # Store fractional coords — pixel polygons built on demand
-            self._lane_fracs = dict(LANE_ZONES)
+        # Determine whether the stored zones belong to this video
+        video_basename = os.path.basename(video_path) if video_path else ""
+        video_changed  = (bool(_AUTO_LANE_VIDEO)
+                          and bool(video_basename)
+                          and video_basename != _AUTO_LANE_VIDEO)
+
+        if video_changed:
+            print(f"[LaneDetector] ⚠  New video detected: '{video_basename}' "
+                  f"(stored zones are for '{_AUTO_LANE_VIDEO}') — re-detecting.")
+
+        effective_zones = {} if video_changed else LANE_ZONES
+
+        # ── Priority 1: Valid stored zones ─────────────────────────
+        if effective_zones:
+            self._lane_fracs = dict(effective_zones)
             self._free_fracs = dict(FREE_TURN_ZONES) if FREE_TURN_ZONES else {}
             self.calibrated  = True
             n = len(self._lane_fracs)
-            print(f"[LaneDetector] Signal zones loaded: "
-                  f"{list(self._lane_fracs.keys())}")
-            print(f"[LaneDetector] Free-turn zones loaded: "
-                  f"{list(self._free_fracs.keys())}")
-            print(f"[LaneDetector] Using {n} manually configured lane zone(s): "
-                  f"{list(self._lane_fracs.keys())}")
+            print(f"[LaneDetector] ✓ Using {'cached auto' if _AUTO_LANE_VIDEO else 'manual'} "
+                  f"zones: {list(self._lane_fracs.keys())}")
             return n >= 1
 
-        # ── Priority 2: Automatic Hough detection ──────────────────
-        print("[LaneDetector] LANE_ZONES not set — running Hough auto-detection…")
+        # ── Priority 2: AutoLaneDetector ───────────────────────────
+        print("[LaneDetector] LANE_ZONES empty — launching AutoLaneDetector …")
+        try:
+            from detector.auto_lane_detector import AutoLaneDetector
+            ald   = AutoLaneDetector()
+            zones = ald.detect(frames, video_path=video_path)
+
+            if zones:
+                # Persist zones to config.py for future runs
+                ald.save_to_config(zones, video_path)
+                self._lane_fracs = zones
+                self._free_fracs = {}
+                self.calibrated  = True
+                n = len(zones)
+                print(f"[LaneDetector] ✓ AutoLaneDetector: {n} zones detected: "
+                      f"{list(zones.keys())}")
+                return n >= 1
+            else:
+                print("[LaneDetector] ⚠  AutoLaneDetector returned no zones — "
+                      "falling back to Hough.")
+        except Exception as exc:
+            import traceback
+            print(f"[LaneDetector] ✗ AutoLaneDetector error: {exc}")
+            traceback.print_exc()
+
+        # ── Priority 3: Legacy Hough-based detection ───────────────
+        print("[LaneDetector] Running Hough line detection …")
         all_lines: list = []
         for frame in frames:
             lines = self._detect_lines_in_frame(frame)
@@ -135,7 +180,7 @@ class LaneDetector:
 
         if len(boundaries) < 2:
             print("[LaneDetector] Fewer than 2 boundaries — switching to fallback.")
-            self._build_fallback_polygons(w, h)
+            self._build_fallback_polygons()
             self.calibrated = True
             return bool(self.lane_polygons)
 
