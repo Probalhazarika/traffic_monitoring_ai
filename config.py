@@ -4,11 +4,53 @@
 
 import os
 
-# ── Paths ──────────────────────────────────────
+# ── Paths ────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(BASE_DIR, "videos", "traffic.mp4")
 MODEL_PATH = "yolov8s-visdrone.pt"   # swap to yolov8s-visdrone.pt after fine-tuning
 DB_PATH    = os.path.join(BASE_DIR, "database", "traffic_data.db")
+
+# ────────────────────────────────────────────────────────────────
+#  ML Lane Detection Pipeline (SegFormer / Mask2Former)
+# ────────────────────────────────────────────────────────────────
+#
+#  Set ML_LANE_ENABLED = True to switch the live system from heuristic
+#  AutoLaneDetector to the trained SegFormer-B5 / Mask2Former model.
+#
+#  Requirements:
+#    1. Run: python3 train.py          (produces weights/best_model.pth)
+#    2. Set ML_LANE_ENABLED = True below
+#    3. Restart: python3 app.py
+#
+#  When disabled (default), the existing AutoLaneDetector is used.
+# ────────────────────────────────────────────────────────────────
+
+# Master switch: True = ML model, False = heuristic AutoLaneDetector
+ML_LANE_ENABLED     = False
+
+# Model type: 'segformer' or 'mask2former'
+ML_LANE_MODEL_TYPE  = "segformer"
+
+# Path to trained model checkpoint
+ML_LANE_CHECKPOINT  = os.path.join(BASE_DIR, "weights", "best_model.pth")
+
+# Config YAML for the trained model
+ML_LANE_CONFIG      = os.path.join(BASE_DIR, "configs", "segformer_b5.yaml")
+
+# Inference image size (must match training image_size)
+ML_LANE_IMAGE_SIZE  = 1024
+
+# Binary threshold for lane mask (0.0–1.0)
+ML_LANE_THRESHOLD   = 0.5
+
+# Temporal smoother: True = use LaneTracker (EMA), False = raw per-frame
+ML_LANE_TRACKER     = True
+
+# Minimum skeleton length (pixels) to keep a detected lane
+ML_LANE_MIN_LENGTH  = 40
+
+# Lane-to-vehicle assignment max distance (pixels at display resolution)
+ML_LANE_MAX_DIST    = 120.0
 
 # ── Research-grade pipeline flags ──────────────────
 # FP16 half-precision on MPS/CUDA (roughly 2× faster, negligible accuracy drop)
@@ -112,10 +154,10 @@ ROAD_MASK_POLY = [
 # AUTO-DETECTED for video: traffic.mp4
 AUTO_LANE_VIDEO = "traffic.mp4"
 LANE_ZONES = {
-    "North": [(0.4479, 0.0), (0.5682, 0.0), (0.5682, 0.0824), (0.4479, 0.0824)],
-    "East": [(0.5674, 0.3315), (0.9997, 0.3315), (0.9997, 0.6074), (0.5674, 0.6074)],
-    "South": [(0.0997, 0.3056), (0.8604, 0.3056), (0.8604, 0.9995), (0.0997, 0.9995)],
-    "West": [(0.0, 0.2514), (0.4659, 0.2514), (0.4659, 0.9472), (0.0, 0.9472)],
+    "North": [(0.3359, 0.0), (0.5125, 0.0), (0.5125, 0.6458), (0.3359, 0.6458)],
+    "East": [(0.6266, 0.2903), (0.9997, 0.2903), (0.9997, 0.6449), (0.6266, 0.6449)],
+    "South": [(0.5013, 0.8958), (0.6258, 0.8958), (0.6258, 0.9995), (0.5013, 0.9995)],
+    "West": [(0.0, 0.7245), (0.3766, 0.7245), (0.3766, 0.9995), (0.0, 0.9995)],
 }
 # <<AUTO_LANE_END>>
 

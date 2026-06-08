@@ -29,14 +29,13 @@ import numpy as np
 from collections import deque
 
 from detector.yolo_detector    import YOLODetector
-from detector.lane_detector    import LaneDetector
 from detector.vehicle_counter  import VehicleCounter
 from detector.heatmap          import TrafficHeatmap
 from detector.motion_estimator import MotionEstimator
 from traffic.signal_controller import SignalController
 from database.db_manager       import DBManager
-from config import (VIDEO_PATH, CALIBRATION_FRAMES,
-                    HEATMAP_ALPHA)
+from config import (VIDEO_PATH, CALIBRATION_FRAMES, HEATMAP_ALPHA,
+                    ML_LANE_ENABLED)
 
 # ── Shared state (thread-safe via lock) ──────────
 state_lock = threading.Lock()
@@ -71,12 +70,26 @@ _PERF_WINDOW = 30
 class VideoProcessor:
     """
     Orchestrates the full research-grade pipeline for one video.
+
+    Lane detection mode is selected by ML_LANE_ENABLED in config.py:
+      False (default) → heuristic AutoLaneDetector via LaneDetector
+      True            → trained SegFormer-B5 / Mask2Former via MLLaneAdapter
     """
 
     def __init__(self, video_path: str = VIDEO_PATH):
         self.video_path  = video_path
         self.detector    = YOLODetector()
-        self.lane_det    = LaneDetector()
+
+        # ── Lane detection: ML or heuristic ──────────
+        if ML_LANE_ENABLED:
+            from detector.ml_lane_adapter import MLLaneAdapter
+            self.lane_det = MLLaneAdapter()
+            print("[Processor] Lane detection: ML (SegFormer/Mask2Former)")
+        else:
+            from detector.lane_detector import LaneDetector
+            self.lane_det = LaneDetector()
+            print("[Processor] Lane detection: Heuristic (AutoLaneDetector)")
+
         self.counter     = VehicleCounter()
         self.heatmap     = TrafficHeatmap(w=STREAM_W, h=STREAM_H)
         self.motion_est  = MotionEstimator()
@@ -144,6 +157,10 @@ class VideoProcessor:
                 dets = self.detector.detect(frame,
                                             native_frame=native_frame,
                                             frame_w=fw, frame_h=fh)
+
+                # Update ML lane tracker if ML mode is active
+                if ML_LANE_ENABLED:
+                    self.lane_det.update(frame)
 
                 lane_dets = self.lane_det.assign_vehicles_to_lanes(
                     dets, frame_w=fw, frame_h=fh

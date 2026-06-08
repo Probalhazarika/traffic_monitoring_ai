@@ -1,0 +1,49 @@
+# Native PyTorch Mask2Former training configuration
+model_type: mask2former
+
+# Backbone: Swin-T (lightweight, no detectron2 needed)
+backbone: swin_tiny
+backbone_pretrained: true
+num_classes: 2
+
+# Input
+image_size: 1024
+mean: [0.485, 0.456, 0.406]
+std:  [0.229, 0.224, 0.225]
+
+# Mask2Former architecture
+hidden_dim: 256
+nheads: 8
+dim_feedforward: 2048
+dec_layers: 9
+num_queries: 100
+oversample_ratio: 3.0
+importance_sample_ratio: 0.75
+
+# Training
+batch_size: 1
+grad_accumulation: 16         # effective batch = 16
+lr_backbone: 1.0e-5
+lr_head: 1.0e-4
+weight_decay: 1.0e-4
+scheduler: cosine
+warmup_epochs: 2
+epochs: 50
+early_stopping_patience: 10
+
+# Loss weights (Mask2Former multi-component loss)
+loss_ce_weight:   2.0
+loss_mask_weight: 5.0
+loss_dice_weight: 5.0
+
+# Mixed precision
+mixed_precision: true
+
+# Logging
+tensorboard_dir: runs/mask2former
+checkpoint_dir:  weights
+best_model_name: best_model_mask2former.pth
+log_every_n_steps: 10
+
+# Inference
+threshold: 0.5

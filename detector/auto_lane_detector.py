@@ -207,52 +207,37 @@ class AutoLaneDetector:
     @staticmethod
     def _detect_road(frame: np.ndarray, w: int, h: int) -> np.ndarray:
         """
-        Binary road-surface mask.
-
-        Works for NIGHTTIME footage (lit road surface vs dark surroundings)
-        AND daytime footage (grey asphalt vs green/building areas).
-
-        Steps
-        -----
-        1. CLAHE — equalises contrast so dark and lit areas are comparable
-        2. Gaussian blur — smooths noise and lane-marking texture
-        3. Otsu threshold — automatically picks the best split value
-        4. Headlight exclusion — removes ultra-bright spots (headlights/lamps)
-        5. Morphological close — bridges gaps between interrupted road sections
-        6. Morphological open — removes small isolated blobs
-        7. Component filter — discards regions too small to be roads
+        Binary road mask: bright-ish, medium-saturation asphalt.
+        Uses CLAHE and a fixed lower threshold to capture roads even in dark night scenes.
         """
-        gray     = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        clahe    = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-        blurred  = cv2.GaussianBlur(enhanced, (15, 15), 0)
-
-        # Otsu: automatically determines the threshold that best separates
-        # the bright road from the dark background
-        _, otsu = cv2.threshold(blurred, 0, 255,
-                                cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # Exclude the very brightest pixels (car headlights, lamp glare)
-        _, hi_mask = cv2.threshold(blurred, 235, 255, cv2.THRESH_BINARY_INV)
-        road = cv2.bitwise_and(otsu, hi_mask)
-
-        # Large morphological close: stitches together road sections separated
-        # by lane markings, crosswalks, or gaps in the lighting
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Local illumination normalization
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
+        eq = clahe.apply(gray)
+        
+        blurred = cv2.GaussianBlur(eq, (21, 21), 0)
+        
+        # Lower threshold: anything above 40 in CLAHE image is probably road/ground
+        _, th1 = cv2.threshold(blurred, 40, 255, cv2.THRESH_BINARY)
+        
+        # Exclude extreme glare (headlights, lamps)
+        _, no_hi = cv2.threshold(blurred, 240, 255, cv2.THRESH_BINARY_INV)
+        
+        road = cv2.bitwise_and(th1, no_hi)
+        
+        # Close small gaps (lane markings, crosswalks interrupting the surface)
         k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (35, 35))
-        road    = cv2.morphologyEx(road, cv2.MORPH_CLOSE, k_close)
-
-        # Open: removes small isolated bright blobs (parked cars, street lamps)
-        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-        road   = cv2.morphologyEx(road, cv2.MORPH_OPEN, k_open)
-
-        # Keep only connected components large enough to be actual road sections
-        min_area = w * h * 0.008            # ≥ 0.8 % of frame area
-        nc, labels, stats, _ = cv2.connectedComponentsWithStats(road, connectivity=8)
-        clean = np.zeros_like(road)
-        for i in range(1, nc):
-            if stats[i, cv2.CC_STAT_AREA] >= min_area:
-                clean[labels == i] = 255
-
+        road = cv2.morphologyEx(road, cv2.MORPH_CLOSE, k_close)
+        
+        # Keep only the largest connected component (the main intersection)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(road, 8)
+        if num_labels > 1:
+            largest_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+            clean = (labels == largest_label).astype(np.uint8) * 255
+        else:
+            clean = road
+            
         return clean
 
     # ═══════════════════════════════════════════════════════════════
@@ -324,6 +309,16 @@ class AutoLaneDetector:
         M  = cv2.moments(best_cnt)
         cx = int(M["m10"] / M["m00"])
         cy = int(M["m01"] / M["m00"])
+        
+        # Constrain the intersection box to prevent it from swallowing the arms
+        # Max width and height = 25% of frame
+        bw = min(bw, int(w * 0.25))
+        bh = min(bh, int(h * 0.25))
+        
+        # Re-center the constrained box
+        bx = max(0, cx - bw // 2)
+        by = max(0, cy - bh // 2)
+
         return (bx, by, bx + bw, by + bh), (cx, cy)
 
     # ═══════════════════════════════════════════════════════════════
@@ -418,6 +413,7 @@ class AutoLaneDetector:
                         xs_arm, ys_arm,
                         y_stop=iy1,
                         y_far=int(np.min(ys_arm)),
+                        direction=direction
                     )
 
                 elif direction == "South":
@@ -427,6 +423,7 @@ class AutoLaneDetector:
                         xs_arm, ys_arm,
                         y_stop=iy2,
                         y_far=int(np.max(ys_arm)),
+                        direction=direction
                     )
 
                 elif direction == "East":
@@ -436,6 +433,7 @@ class AutoLaneDetector:
                         xs_arm, ys_arm,
                         x_stop=ix2,
                         x_far=int(np.max(xs_arm)),
+                        direction=direction
                     )
 
                 else:  # West
@@ -445,6 +443,7 @@ class AutoLaneDetector:
                         xs_arm, ys_arm,
                         x_stop=ix1,
                         x_far=int(np.min(xs_arm)),
+                        direction=direction
                     )
 
                 if corners and len(corners) == 4:
@@ -464,7 +463,7 @@ class AutoLaneDetector:
 
     @staticmethod
     def _vertical_zone(xs: np.ndarray, ys: np.ndarray,
-                        y_stop: int, y_far: int) -> list:
+                        y_stop: int, y_far: int, direction: str) -> list:
         """
         Build a 4-corner polygon for a vertical (North / South) arm.
 
@@ -495,17 +494,29 @@ class AutoLaneDetector:
 
         x_left  = int(np.percentile(x_lefts,  15))
         x_right = int(np.percentile(x_rights, 85))
-
-        return [
-            (x_left,  y_lo),   # top-left
-            (x_right, y_lo),   # top-right
-            (x_right, y_hi),   # bottom-right
-            (x_left,  y_hi),   # bottom-left
-        ]
+        
+        mid_x = (x_left + x_right) // 2
+        
+        if direction == "North":
+            # North inbound is left half
+            return [
+                (x_left, y_lo),
+                (mid_x, y_lo),
+                (mid_x, y_hi),
+                (x_left, y_hi),
+            ]
+        else:
+            # South inbound is right half
+            return [
+                (mid_x, y_lo),
+                (x_right, y_lo),
+                (x_right, y_hi),
+                (mid_x, y_hi),
+            ]
 
     @staticmethod
     def _horizontal_zone(xs: np.ndarray, ys: np.ndarray,
-                          x_stop: int, x_far: int) -> list:
+                          x_stop: int, x_far: int, direction: str) -> list:
         """
         Build a 4-corner polygon for a horizontal (East / West) arm.
 
@@ -531,13 +542,25 @@ class AutoLaneDetector:
 
         y_top = int(np.percentile(y_tops, 15))
         y_bot = int(np.percentile(y_bots, 85))
-
-        return [
-            (x_lo, y_top),    # top-left
-            (x_hi, y_top),    # top-right
-            (x_hi, y_bot),    # bottom-right
-            (x_lo, y_bot),    # bottom-left
-        ]
+        
+        mid_y = (y_top + y_bot) // 2
+        
+        if direction == "East":
+            # East inbound is top half
+            return [
+                (x_lo, y_top),
+                (x_hi, y_top),
+                (x_hi, mid_y),
+                (x_lo, mid_y),
+            ]
+        else:
+            # West inbound is bottom half
+            return [
+                (x_lo, mid_y),
+                (x_hi, mid_y),
+                (x_hi, y_bot),
+                (x_lo, y_bot),
+            ]
 
     # ═══════════════════════════════════════════════════════════════
     #  Debug Visualisation

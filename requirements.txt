@@ -7,6 +7,18 @@ pandas>=2.0.0
 matplotlib>=3.7.0
 Pillow>=10.0.0
 ensemble-boxes>=1.0.0
+scipy>=1.9.0
+
+# ── Aerial Lane Detection Pipeline ───────────────────────────────────────────
+transformers>=4.37.0          # SegFormer-B5 (HuggingFace)
+accelerate>=0.27.0            # HuggingFace training utilities
+timm>=0.9.0                   # Swin Transformer backbone (Mask2Former)
+albumentations>=1.4.0         # Augmentation pipeline
+scikit-image>=0.22.0          # skeletonize for lane centerlines
+scikit-learn>=1.4.0           # metrics, utilities
+tensorboard>=2.16.0           # training visualization
+pyyaml>=6.0                   # config files
+
 # Phase 2 — Super Resolution (optional, install when needed)
 # realesrgan>=0.3.0
 # basicsr>=1.4.2

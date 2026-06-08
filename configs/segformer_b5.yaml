@@ -1,0 +1,35 @@
+# SegFormer-B5 training configuration for AerialLanes18
+model_type: segformer
+backbone: nvidia/mit-b5
+num_classes: 2
+
+# Input
+image_size: 1024
+mean: [0.485, 0.456, 0.406]
+std:  [0.229, 0.224, 0.225]
+
+# Training
+batch_size: 2
+grad_accumulation: 8          # effective batch = 16
+lr: 1.0e-4
+weight_decay: 1.0e-2
+scheduler: cosine
+warmup_epochs: 2
+epochs: 50
+early_stopping_patience: 10
+
+# Loss
+loss_dice_weight: 0.5
+loss_bce_weight:  0.5
+
+# Mixed precision
+mixed_precision: true
+
+# Logging
+tensorboard_dir: runs/segformer_b5
+checkpoint_dir:  weights
+best_model_name: best_model.pth
+log_every_n_steps: 10
+
+# Inference
+threshold: 0.5

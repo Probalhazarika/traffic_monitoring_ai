@@ -6,9 +6,11 @@ venv/
 env/
 .env
 
-# YOLO weights and deep learning
+# YOLO weights and deep learning model checkpoints
 *.pt
 *.onnx
+*.pth
+weights/
 
 # Media (Videos & Images)
 videos/
@@ -38,3 +40,21 @@ training/visdrone_raw_train/
 training/visdrone_raw_val/
 training/visdrone_yolo/
 run_full_training.sh
+
+# ML pipeline: dataset images/masks (large binary files) — keep structure only
+dataset/train/images/
+dataset/train/masks/
+dataset/val/images/
+dataset/val/masks/
+dataset/test/images/
+dataset/test/masks/
+dataset/debug_vis/
+
+# Inference outputs
+outputs/eval_vis/
+outputs/vehicle_lane_assignments.csv
+outputs/*.mp4
+outputs/*.json
+
+# HuggingFace cache
+.cache/
