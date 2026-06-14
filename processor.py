@@ -1,26 +1,20 @@
-# ─────────────────────────────────────────────────
-#  processor.py  —  Research-grade video pipeline.
+# ─────────────────────────────────────────────────────────────────
+#  processor.py  —  Video pipeline.
 #
-#  Architecture (unchanged from original):
-#   ┌─ Render thread ──────────────────────────────┐
-#   │  Reads every frame at native FPS             │
-#   │  Draws polygons, heatmap, annotations, HUD   │
-#   │  Encodes JPEG → shared state                 │
-#   └──────────────────────────────────────────────┘
+#  Architecture:
+#   ┌─ Render thread ──────────────────────────────────────────────┐
+#   │  Reads every frame at native FPS                             │
+#   │  Draws lane polygons, heatmap, vehicle annotations, HUD      │
+#   │  Encodes JPEG → shared state                                 │
+#   └──────────────────────────────────────────────────────────────┘
 #        ↕  shares: last_detections / lane_dets / perf
-#   ┌─ Detector thread ────────────────────────────┐
-#   │  Runs multi-pass YOLO + WBF fusion           │
-#   │  Computes motion density (optical flow)      │
-#   │  Runs lane assignment                        │
-#   │  Results written atomically via a lock       │
-#   └──────────────────────────────────────────────┘
-#
-#  New research features wired here:
-#    • TrafficHeatmap  — decaying Gaussian heatmap
-#    • MotionEstimator — per-lane optical flow
-#    • Hybrid density  — passed to VehicleCounter
-#    • perf_stats      — latency / fps / det counts
-# ─────────────────────────────────────────────────
+#   ┌─ Detector thread ────────────────────────────────────────────┐
+#   │  Runs multi-pass YOLO + WBF fusion                           │
+#   │  Computes motion density (optical flow)                      │
+#   │  Assigns detections to manual lane zones                     │
+#   │  Results written atomically via a lock                       │
+#   └──────────────────────────────────────────────────────────────┘
+# ─────────────────────────────────────────────────────────────────
 
 import cv2
 import threading
@@ -29,19 +23,19 @@ import numpy as np
 from collections import deque
 
 from detector.yolo_detector    import YOLODetector
+from detector.lane_detector    import LaneDetector
 from detector.vehicle_counter  import VehicleCounter
 from detector.heatmap          import TrafficHeatmap
 from detector.motion_estimator import MotionEstimator
 from traffic.signal_controller import SignalController
 from database.db_manager       import DBManager
-from config import (VIDEO_PATH, CALIBRATION_FRAMES, HEATMAP_ALPHA,
-                    ML_LANE_ENABLED)
+from config import (VIDEO_PATH, HEATMAP_ALPHA)
 
 # ── Shared state (thread-safe via lock) ──────────
 state_lock = threading.Lock()
 state = {
     "frame":            None,   # latest annotated JPEG bytes
-    "signal_schedule":  {},     # full signal schedule dict
+    "signal_schedule":  {},
     "fps":              0,
     "frame_count":      0,
     "is_running":       False,
@@ -50,11 +44,11 @@ state = {
     "calibrated":       False,
     # Research features
     "heatmap_enabled":  False,
-    "perf_stats":       {       # benchmarking metrics
+    "perf_stats":       {
         "detection_latency_ms":  0.0,
         "avg_detections":        0.0,
-        "conf_histogram":        [],   # list of 10 bucket counts
-        "fps_history":           [],   # last 30 fps samples
+        "conf_histogram":        [],
+        "fps_history":           [],
     },
 }
 
@@ -69,27 +63,16 @@ _PERF_WINDOW = 30
 
 class VideoProcessor:
     """
-    Orchestrates the full research-grade pipeline for one video.
+    Orchestrates the video pipeline for one video file.
 
-    Lane detection mode is selected by ML_LANE_ENABLED in config.py:
-      False (default) → heuristic AutoLaneDetector via LaneDetector
-      True            → trained SegFormer-B5 / Mask2Former via MLLaneAdapter
+    Lane zones are loaded directly from config.LANE_ZONES (manual coordinates).
+    No auto-detection or ML model is used.
     """
 
     def __init__(self, video_path: str = VIDEO_PATH):
         self.video_path  = video_path
         self.detector    = YOLODetector()
-
-        # ── Lane detection: ML or heuristic ──────────
-        if ML_LANE_ENABLED:
-            from detector.ml_lane_adapter import MLLaneAdapter
-            self.lane_det = MLLaneAdapter()
-            print("[Processor] Lane detection: ML (SegFormer/Mask2Former)")
-        else:
-            from detector.lane_detector import LaneDetector
-            self.lane_det = LaneDetector()
-            print("[Processor] Lane detection: Heuristic (AutoLaneDetector)")
-
+        self.lane_det    = LaneDetector()
         self.counter     = VehicleCounter()
         self.heatmap     = TrafficHeatmap(w=STREAM_W, h=STREAM_H)
         self.motion_est  = MotionEstimator()
@@ -100,8 +83,8 @@ class VideoProcessor:
 
         # ── Detection state ──────────────────────
         self._det_lock         = threading.Lock()
-        self._det_frame        = None   # display-res frame (720p)
-        self._det_native_frame = None   # native 4K frame
+        self._det_frame        = None
+        self._det_native_frame = None
         self._det_frame_ready  = threading.Event()
         self._last_detections  = []
         self._last_lane_dets   = {}
@@ -109,8 +92,8 @@ class VideoProcessor:
         self._last_motion      = {}
 
         # ── Perf tracking ────────────────────────
-        self._det_count_buf = deque(maxlen=_PERF_WINDOW)  # detections/frame
-        self._conf_all      = deque(maxlen=500)            # recent conf scores
+        self._det_count_buf = deque(maxlen=_PERF_WINDOW)
+        self._conf_all      = deque(maxlen=500)
         self._fps_buf       = deque(maxlen=_PERF_WINDOW)
 
     # ── Control ──────────────────────────────────
@@ -158,10 +141,7 @@ class VideoProcessor:
                                             native_frame=native_frame,
                                             frame_w=fw, frame_h=fh)
 
-                # Update ML lane tracker if ML mode is active
-                if ML_LANE_ENABLED:
-                    self.lane_det.update(frame)
-
+                # Assign vehicles to manual lane zones
                 lane_dets = self.lane_det.assign_vehicles_to_lanes(
                     dets, frame_w=fw, frame_h=fh
                 )
@@ -201,30 +181,23 @@ class VideoProcessor:
             state["is_running"]     = True
             state["video_finished"] = False
 
-        # ── Calibration ───────────────────────────
-        print(f"[Processor] Calibrating lanes ({CALIBRATION_FRAMES} frames)…")
-        calib_frames = []
-        for _ in range(CALIBRATION_FRAMES):
-            ret, frame = cap.read()
-            if ret:
-                calib_frames.append(frame)
-            else:
-                break
-        self.lane_det.calibrate(calib_frames, video_path=self.video_path)
+        # ── Load manual lane zones (instant — no frames needed) ───
+        print("[Processor] Loading manual lane zones from config.py…")
+        self.lane_det.calibrate()
         with state_lock:
             state["lane_polygons"] = self.lane_det.get_polygons_serializable()
             state["calibrated"]    = True
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
         native_fps  = cap.get(cv2.CAP_PROP_FPS) or 30.0
         frame_delay = 1.0 / native_fps
-        print(f"[Processor] Native FPS: {native_fps:.1f}")
+        print(f"[Processor] Native FPS: {native_fps:.1f}  |  "
+              f"Lanes: {list(self.lane_det.lane_polygons.keys())}")
 
         # ── Loop ──────────────────────────────────
-        frame_idx      = 0
-        fps_timer      = time.time()
-        fps_counter    = 0
-        db_counter     = 0
+        frame_idx   = 0
+        fps_timer   = time.time()
+        fps_counter = 0
+        db_counter  = 0
 
         while not self._stop_flag.is_set():
             ret, frame = cap.read()
@@ -240,7 +213,6 @@ class VideoProcessor:
             with state_lock:
                 state["video_finished"] = False
 
-            # Keep native frame for detector zone crops
             native_frame = frame
 
             # Downscale to display size
@@ -261,9 +233,9 @@ class VideoProcessor:
 
             # Grab latest detection results
             with self._det_lock:
-                detections   = self._last_detections
-                lane_dets    = self._last_lane_dets
-                schedule     = self._last_schedule
+                detections    = self._last_detections
+                lane_dets     = self._last_lane_dets
+                schedule      = self._last_schedule
                 motion_scores = self._last_motion
 
             # ── Draw lane polygons ────────────────
@@ -311,10 +283,8 @@ class VideoProcessor:
                 state["signal_schedule"] = schedule
                 state["frame_count"]     = frame_idx
 
-                # Perf stats for benchmarking panel
                 avg_dets = (sum(self._det_count_buf) / len(self._det_count_buf)
                             if self._det_count_buf else 0)
-                # Confidence histogram (10 buckets: 0-10%, 10-20%, …, 90-100%)
                 conf_hist = [0] * 10
                 for c in self._conf_all:
                     bucket = min(9, int(c * 10))
@@ -348,7 +318,7 @@ class VideoProcessor:
 
             frame_idx += 1
 
-            # Real-time pacing — don't run faster than native FPS
+            # Real-time pacing
             time.sleep(max(0, frame_delay - 0.005))
 
         cap.release()
@@ -368,9 +338,9 @@ class VideoProcessor:
         for lane, info in schedule.items():
             if lane.startswith("__"):
                 continue
-            count  = info.get("count", 0)
-            green  = info.get("green_time", 15)
-            sig    = info.get("signal", "RED")
+            count = info.get("count", 0)
+            green = info.get("green_time", 15)
+            sig   = info.get("signal", "RED")
             lines.append(f"{lane}: {count}v. {sig}. Green: {green}s")
 
         box_w, box_h = 220, 20 + len(lines) * 18
