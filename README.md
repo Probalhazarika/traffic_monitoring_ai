@@ -1,151 +1,132 @@
-# AI-Based Smart Traffic Monitoring & Signal Optimization System
+# TrafficCommand: AI-Powered Smart Traffic Monitoring System 🚦
 
-**Final Year CSE Major Project** — uses YOLOv8, OpenCV, Flask, SQLite.
-
----
-
-## 📁 Project Structure
-
-```
-traffic_monitoring_ai/
-├── config.py               ← All tuneable settings (ROI, thresholds, paths)
-├── processor.py            ← Main video pipeline (background thread)
-├── app.py                  ← Flask web server + API routes
-├── test_detector.py        ← Quick test without Flask
-├── requirements.txt
-│
-├── detector/
-│   ├── yolo_detector.py    ← YOLOv8 wrapper (vehicle classes only)
-│   ├── roi_manager.py      ← Lane ROI zones + assignment logic
-│   └── vehicle_counter.py  ← Count + density classification + annotation
-│
-├── traffic/
-│   └── signal_controller.py ← Green-light timing algorithm (2 strategies)
-│
-├── database/
-│   └── db_manager.py       ← SQLite: insert + query traffic logs
-│
-├── templates/
-│   └── index.html          ← Dashboard UI (Chart.js, live MJPEG, log table)
-│
-├── static/
-│   └── style.css           ← Dark glassmorphism theme
-│
-└── videos/
-    └── traffic.mp4         ← ← ← PUT YOUR VIDEO HERE
-```
+**TrafficCommand** is a production-grade, research-oriented AI traffic monitoring and optimization system. It combines state-of-the-art computer vision models (YOLOv8) with advanced image processing techniques to monitor traffic density, optimize traffic light signals in real-time, and manage a team of traffic controllers via a secure administrative portal.
 
 ---
 
-## ⚙️ Setup (Step-by-Step)
+## 🚀 Key Features
 
-### 1. Create & activate a virtual environment
+### Advanced AI Vision Pipeline
+- **YOLOv8 Object Detection**: High-speed, real-time detection of vehicles (cars, trucks, buses, motorbikes).
+- **Weighted Box Fusion (WBF)**: Intelligently merges overlapping bounding boxes to drastically reduce false positives.
+- **Optical Flow Tracking**: Tracks the vector movement of vehicles across frames to ensure stable counts.
+- **Real-ESRGAN Super-Resolution (Super-Res)**: AI upscaling to enhance blurry or distant drone footage before detection.
+- **Heatmap Generation**: Visualizes traffic density and accumulation zones dynamically over the video feed.
+
+### Secure Controller Portal & Admin Dashboard
+- **Role-Based Access Control**: Separate privileges for standard Traffic Controllers and System Administrators.
+- **Admin Panel**: A centralized dashboard to approve, revoke, or delete access for new controller sign-ups.
+- **Automated SQLite Database**: Secure credential storage using `werkzeug.security` password hashing.
+
+### Real-Time Analytics Dashboard
+- **Live MJPEG Video Feed**: Low-latency video streaming directly to the browser.
+- **Dynamic Charting**: Real-time rendering of lane densities and historical traffic trends using Chart.js.
+- **Smart Signal Control**: Automatically allocates Green/Red light timing based on real-time lane density classifications (Low/Medium/High).
+- **Modern UI**: Built with a sleek, responsive Cyberpunk/Glassmorphism design aesthetic.
+
+---
+
+## 🛠️ Tech Stack
+
+**Core Logic & Computer Vision**
+- **Python 3.10+**: The core programming language.
+- **Ultralytics YOLOv8**: For primary vehicle detection.
+- **OpenCV (`cv2`)**: For video frame manipulation, drawing bounding boxes, and Optical Flow calculations.
+- **Real-ESRGAN**: For super-resolution image enhancement.
+- **Ensemble Boxes (WBF)**: For Weighted Box Fusion algorithm.
+
+**Backend & Web Server**
+- **Flask**: Lightweight WSGI web application framework serving the API and HTML templates.
+- **SQLite3**: Serverless database for persisting user credentials, roles, and traffic history logs.
+- **Werkzeug**: For secure password hashing and session management.
+
+**Frontend & UI**
+- **HTML5 & CSS3**: Custom-built Glassmorphism design system (no bulky CSS frameworks).
+- **Vanilla JavaScript**: For asynchronous API polling, DOM manipulation, and interactive features without the overhead of React/Vue.
+- **Chart.js**: For rendering the live Bar and Line charts on the dashboard.
+- **Google Fonts**: Utilizing *Inter* and *JetBrains Mono* for crisp, modern typography.
+
+---
+
+## ⚙️ Setup & Installation
+
+Follow these steps to get the system running on your local machine:
+
+### 1. Clone the Repository
 ```bash
+git clone https://github.com/Probalhazarika/traffic_monitoring_ai.git
 cd traffic_monitoring_ai
-python3 -m venv venv
-source venv/bin/activate        # macOS / Linux
-# venv\Scripts\activate         # Windows
 ```
 
-### 2. Install dependencies
+### 2. Set Up a Virtual Environment
+It is highly recommended to use a virtual environment to manage dependencies.
+```bash
+python3 -m venv venv
+source venv/bin/activate        # On macOS/Linux
+# venv\Scripts\activate         # On Windows
+```
+
+### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
-> YOLOv8 (`yolov8n.pt`) downloads automatically on first run (~6 MB).
+*(Note: YOLOv8 model weights `yolov8n.pt` will automatically download on the first run).*
 
-### 3. Add your video
-Place any traffic footage as:
-```
+### 4. Provide Video Footage
+Place the traffic video you wish to analyze in the `videos` directory. By default, the system looks for:
+```text
 videos/traffic.mp4
 ```
-Free sample videos: https://www.pexels.com/search/videos/traffic/
-
-### 4. (Optional) Adjust ROI for your video
-Open `config.py` → edit `LANE_ROIS` to match your video resolution and lane positions.  
-Default ROI splits a 1280×720 frame into 4 equal quadrants.  
-The ROI is **auto-scaled** to match any video resolution.
 
 ---
 
-## 🚀 Running the System
+## 🚦 How to Run the System
 
-### Quick test (no Flask required)
-```bash
-python test_detector.py
-```
-Opens one frame, detects vehicles, prints counts per lane, saves `test_output.jpg`.
-
-### Full dashboard
+### 1. Start the Flask Server
 ```bash
 python app.py
 ```
-Open browser → **http://localhost:5000**
+You should see output indicating that the database is initialized and the server is running on `http://127.0.0.1:5001`.
+
+### 2. Access the Application
+Open your web browser and navigate to:
+**http://localhost:5001**
+
+### 3. Authentication Flow
+Because the system is secure, you cannot view the dashboard without an approved account.
+1. Go to **http://localhost:5001/signup** and create a new account.
+2. *Note: The very first time the database initializes, a default Admin account is automatically generated.*
+   - **Username:** `ram`
+   - **Password:** `hazarika1?`
+3. Go to **http://localhost:5001/login**, check the **"Login as Admin"** box, and log in with the `ram` credentials.
+4. From the **Admin Panel**, you can approve the new account you just created.
+5. Log out, and log back in with your new approved account to access the main Traffic Dashboard.
 
 ---
 
-## 📊 Dashboard Features
+## 🧠 System Architecture
 
-| Feature | Details |
-|---|---|
-| Live video feed | MJPEG stream with bounding boxes & ROI overlays |
-| Lane cards | Real-time vehicle count + density badge per lane |
-| Signal panel | GREEN/RED indicator + green-time bar per lane |
-| Bar chart | Vehicle count per lane (auto-refreshes every 2 s) |
-| Line chart | Historical trend from DB (last 200 records) |
-| Log table | Scrollable recent traffic records with timestamps |
+The pipeline runs efficiently using a multi-threaded approach:
 
----
+1. **Background Processing Thread (`processor.py`)**
+   - Continuously reads frames from `videos/traffic.mp4`.
+   - Optionally applies **Super-Resolution** to the frame.
+   - Runs **YOLOv8** inference.
+   - Applies **Weighted Box Fusion (WBF)** to clean up bounding boxes.
+   - Calculates **Optical Flow** to maintain tracking consistency.
+   - Assigns vehicles to specific geometric **Lane ROIs** (Regions of Interest).
+   - Generates the dynamic **Heatmap**.
+   - Evaluates density and calculates signal timings.
+   - Writes periodic logs to the SQLite database.
 
-## 🔧 Configuration Reference (`config.py`)
+2. **Web Server Thread (`app.py` & `auth.py`)**
+   - Manages HTTP routes and API endpoints (`/api/stats`, `/api/perf`, `/api/auth/...`).
+   - Serves the processed frames as an MJPEG stream to `/video_feed`.
+   - Handles user sessions, authentication checks, and database reads for the Admin Panel.
 
-| Setting | Default | Description |
-|---|---|---|
-| `VIDEO_PATH` | `videos/traffic.mp4` | Input video |
-| `MODEL_PATH` | `yolov8n.pt` | YOLO model (n/s/m/l/x) |
-| `VEHICLE_CLASSES` | `[2,3,5,7]` | car, motorbike, bus, truck |
-| `CONFIDENCE_THRESHOLD` | `0.4` | Min detection confidence |
-| `DENSITY_LOW_MAX` | `5` | ≤5 vehicles → Low |
-| `DENSITY_MEDIUM_MAX` | `15` | ≤15 vehicles → Medium |
-| `GREEN_LOW/MEDIUM/HIGH` | `15/30/45 s` | Signal durations |
-| `LANE_ROIS` | 4 quadrants | Adjust for your video |
+3. **Client-Side Polling (`index.html`)**
+   - The frontend JavaScript securely polls the `/api/stats` and `/api/perf` endpoints every 2 seconds.
+   - Updates the DOM and Chart.js graphs instantly without requiring full page reloads.
 
 ---
-
-## 🧠 How It Works (for Viva)
-
-```
-Video Frame
-    │
-    ▼
-YOLODetector        ← YOLOv8 pretrained on COCO
-    │ bounding boxes
-    ▼
-ROIManager          ← bbox centre point falls inside which ROI?
-    │ lane → [vehicles]
-    ▼
-VehicleCounter      ← count per lane → Low / Medium / High
-    │ lane_stats
-    ▼
-SignalController    ← density → green time (15 / 30 / 45 s)
-    │ schedule
-    ▼
-DBManager           ← SQLite insert every 30 frames
-    │
-    ▼
-Flask /api/stats    ← polled by JS every 2 s
-    │
-    ▼
-Dashboard           ← Chart.js charts + MJPEG stream
-```
-
----
-
-## 📝 API Endpoints
-
-| Endpoint | Method | Returns |
-|---|---|---|
-| `/` | GET | Dashboard HTML |
-| `/video_feed` | GET | MJPEG stream |
-| `/api/stats` | GET | Current frame lane stats (JSON) |
-| `/api/logs?limit=N` | GET | Recent N traffic log records |
-| `/api/summary` | GET | Per-lane aggregate statistics |
+*Built for the future of Smart City infrastructure.*
