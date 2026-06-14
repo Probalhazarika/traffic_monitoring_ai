@@ -19,23 +19,20 @@
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
 
-  <!-- Top Bar -->
-  <header class="top-bar glass-header">
-    <div class="logo">
-      <div class="logo-icon" style="background: var(--cyan); box-shadow: 0 0 10px var(--cyan);"></div>
-      TrafficCommand <span class="badge" style="background: rgba(167,139,250,0.2); color: #a78bfa; border: 1px solid rgba(167,139,250,0.4);">ADMIN</span>
-    </div>
-    
-    <div class="status-indicators">
-      <div class="status-item">
-        <span class="status-dot green"></span>
-        System Online
+  <!-- ═══ HEADER ════════════════════════════════ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-icon">🚦</span>
+      <div>
+        <h1 class="brand-title">TrafficCommand</h1>
+        <span class="brand-sub">Controller Management Portal</span>
       </div>
     </div>
-    
-    <div class="user-controls">
-      <a href="/" class="btn btn-outline" style="margin-right: 15px; border-color: rgba(255,255,255,0.2);">Dashboard</a>
-      <button class="btn btn-danger" onclick="logout()" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #ef4444;">Logout</button>
+    <div class="topbar-meta">
+      <a href="/" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600; color: #a78bfa; border: 1px solid rgba(167,139,250,0.4); border-radius: 4px; text-decoration: none; margin-right: 10px; transition: all 0.2s;">Dashboard</a>
+      <a href="/logout" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600; color: #ef4444; border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; text-decoration: none; margin-right: 10px; transition: all 0.2s;">Logout</a>
+      <div class="meta-chip">System Online</div>
+      <div class="status-dot online" title="System status"></div>
     </div>
   </header>
 
