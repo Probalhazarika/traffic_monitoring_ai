@@ -194,13 +194,11 @@ async function handleSignup(e) {
   const email     = document.getElementById('signup-email').value.trim();
   const username  = document.getElementById('signup-username').value.trim();
   const password  = document.getElementById('signup-password').value;
-  const confirm   = document.getElementById('signup-confirm').value;
-  const agreed    = document.getElementById('agree-terms').checked;
   let   valid     = true;
 
   // Clear all
   ['signup-firstname','signup-lastname','signup-badge',
-   'signup-email','signup-username','signup-password','signup-confirm']
+   'signup-email','signup-username','signup-password']
     .forEach(id => clearField(id, id + '-err'));
 
   // Validate each field
@@ -225,19 +223,9 @@ async function handleSignup(e) {
     valid = setError('signup-username', 'signup-username-err', 'Username must be at least 3 characters.') && valid;
   } else { setValid('signup-username', 'signup-username-err'); }
 
-  const pwRe = /^(?=.*[0-9]).{8,}$/;
-  if (!password || !pwRe.test(password)) {
-    valid = setError('signup-password', 'signup-password-err', 'Min 8 chars and at least 1 number.') && valid;
+  if (!password) {
+    valid = setError('signup-password', 'signup-password-err', 'Password is required.') && valid;
   } else { setValid('signup-password', 'signup-password-err'); }
-
-  if (password !== confirm) {
-    valid = setError('signup-confirm', 'signup-confirm-err', 'Passwords do not match.') && valid;
-  } else if (confirm) { setValid('signup-confirm', 'signup-confirm-err'); }
-
-  if (!agreed) {
-    showAlert('signup-alert', 'You must agree to the Terms of Service.', 'error');
-    return;
-  }
 
   if (!valid) return;
 

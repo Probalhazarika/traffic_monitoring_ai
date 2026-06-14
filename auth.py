@@ -115,10 +115,6 @@ def signup():
         return jsonify({"success": False,
                         "error": "Username must be at least 3 characters."}), 400
 
-    if len(password) < 8 or not re.search(r'[0-9]', password):
-        return jsonify({"success": False,
-                        "error": "Password must be at least 8 characters and include a number."}), 400
-
     pw_hash = generate_password_hash(password)
 
     role = "controller"
