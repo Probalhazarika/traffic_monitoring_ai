@@ -1,5 +1,15 @@
 /* Admin Panel Specific Styles */
 
+.glass-panel {
+  background: rgba(10, 15, 30, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(0, 212, 255, 0.05);
+  border-radius: 12px;
+  padding: 25px;
+}
+
 .table-container {
   overflow-x: auto;
   margin-top: 15px;
@@ -7,101 +17,141 @@
 
 .admin-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .admin-table th, .admin-table td {
-  padding: 12px 15px;
+  padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .admin-table th {
-  color: var(--text-muted);
+  color: #8b949e;
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
+  font-size: 0.75rem;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.admin-table tbody tr {
+  transition: all 0.2s ease;
 }
 
 .admin-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 212, 255, 0.04);
 }
 
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-badge.approved {
-  background: rgba(0, 255, 136, 0.15);
+.admin-table tbody tr td:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
   color: var(--cyan);
 }
 
+.admin-table tbody tr td:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.status-badge.approved {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
 .status-badge.pending {
-  background: rgba(255, 184, 0, 0.15);
+  background: rgba(255, 184, 0, 0.1);
   color: var(--amber);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  box-shadow: 0 0 8px rgba(255, 184, 0, 0.2);
 }
 
 .role-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  color: #c9d1d9;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .role-badge.admin {
-  background: rgba(255, 71, 87, 0.15);
-  color: var(--red);
+  background: rgba(167, 139, 250, 0.1);
+  color: #a78bfa;
+  border-color: rgba(167, 139, 250, 0.3);
 }
 
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .btn-sm {
-  padding: 4px 10px;
-  font-size: 0.8rem;
-  border-radius: 4px;
-  border: none;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
 }
 
 .btn-approve {
-  background: rgba(0, 255, 136, 0.15);
-  color: var(--cyan);
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--green);
+  border-color: rgba(0, 255, 136, 0.3);
 }
 .btn-approve:hover {
-  background: var(--cyan);
+  background: var(--green);
   color: #000;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
 }
 
 .btn-revoke {
-  background: rgba(255, 184, 0, 0.15);
+  background: rgba(255, 184, 0, 0.1);
   color: var(--amber);
+  border-color: rgba(255, 184, 0, 0.3);
 }
 .btn-revoke:hover {
   background: var(--amber);
   color: #000;
+  box-shadow: 0 0 10px rgba(255, 184, 0, 0.5);
 }
 
 .btn-delete {
-  background: rgba(255, 71, 87, 0.15);
-  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
 }
 .btn-delete:hover {
-  background: var(--red);
+  background: #ef4444;
   color: #fff;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Toasts */

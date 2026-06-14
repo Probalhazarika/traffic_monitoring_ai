@@ -108,11 +108,18 @@ function showAlert(id, msg, type /* 'success' | 'error' */) {
 function setLoading(btnId, loading) {
   const btn     = document.getElementById(btnId);
   if (!btn) return;
-  const text    = btn.querySelector('.btn-text');
-  const spinner = btn.querySelector('.btn-spinner');
+  
+  const textEl  = btn.querySelector('.btn-text') || btn;
   btn.disabled  = loading;
-  if (text) text.hidden   = loading;
-  if (spinner) spinner.hidden= !loading;
+  
+  if (loading) {
+    btn.dataset.origText = textEl.textContent;
+    textEl.textContent = "Processing...";
+  } else {
+    if (btn.dataset.origText) {
+      textEl.textContent = btn.dataset.origText;
+    }
+  }
 }
 
 // ── Forgot password (placeholder) ────────────────────────

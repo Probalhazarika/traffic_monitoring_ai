@@ -13,11 +13,17 @@
 </head>
 <body>
 
+  <!-- Animated background -->
+  <div class="bg-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
   <!-- Top Bar -->
-  <header class="top-bar">
+  <header class="top-bar glass-header">
     <div class="logo">
-      <div class="logo-icon"></div>
-      TrafficCommand <span class="badge">ADMIN</span>
+      <div class="logo-icon" style="background: var(--cyan); box-shadow: 0 0 10px var(--cyan);"></div>
+      TrafficCommand <span class="badge" style="background: rgba(167,139,250,0.2); color: #a78bfa; border: 1px solid rgba(167,139,250,0.4);">ADMIN</span>
     </div>
     
     <div class="status-indicators">
@@ -28,23 +34,26 @@
     </div>
     
     <div class="user-controls">
-      <a href="/" class="btn btn-outline" style="margin-right: 15px;">Dashboard</a>
-      <button class="btn btn-danger" onclick="logout()">Logout</button>
+      <a href="/" class="btn btn-outline" style="margin-right: 15px; border-color: rgba(255,255,255,0.2);">Dashboard</a>
+      <button class="btn btn-danger" onclick="logout()" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #ef4444;">Logout</button>
     </div>
   </header>
 
   <!-- Main Container -->
-  <main class="dashboard-container">
+  <main class="dashboard-container" style="padding-top: 100px;">
     
-    <div class="panel full-width">
-      <div class="panel-header">
-        <h2 class="panel-title">Controller Management</h2>
-        <button class="btn btn-outline" onclick="loadUsers()">
+    <div class="panel full-width glass-panel">
+      <div class="panel-header" style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 20px;">
+        <div>
+          <h2 class="panel-title" style="font-size: 1.5rem; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.3);">Controller Management</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 5px;">Approve, revoke, or delete access for traffic controllers.</p>
+        </div>
+        <button class="btn btn-outline btn-refresh" onclick="loadUsers()" style="border-color: var(--cyan); color: var(--cyan);">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="23 4 23 10 17 10"></polyline>
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
           </svg>
-          Refresh
+          Refresh Data
         </button>
       </div>
       
@@ -60,13 +69,16 @@
               <th>Role</th>
               <th>Status</th>
               <th>Joined</th>
-              <th>Actions</th>
+              <th style="text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody id="users-tbody">
             <tr>
-              <td colspan="9" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                Loading users...
+              <td colspan="9" style="text-align: center; padding: 40px; color: var(--cyan);">
+                <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+                  <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--cyan); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></span>
+                  Loading users...
+                </div>
               </td>
             </tr>
           </tbody>
