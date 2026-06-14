@@ -49,29 +49,37 @@ MAX_GREEN    = 60
 # To use a different video, update these coordinates manually.
 #
 LANE_ZONES = {
+    # North: full visible road from top of frame down to stop line
+    # Stop line: y=0.50, road width: x 0.425→0.525
     "North": [
-        (0.3359, 0.0),
-        (0.5125, 0.0),
-        (0.5125, 0.6458),
-        (0.3359, 0.6458),
+        (0.425, 0.00),   # top-left  (top of frame)
+        (0.525, 0.00),   # top-right (top of frame)
+        (0.525, 0.50),   # bottom-right (stop line)
+        (0.425, 0.50),   # bottom-left  (stop line)
     ],
-    "East": [
-        (0.6266, 0.2903),
-        (0.9997, 0.2903),
-        (0.9997, 0.6449),
-        (0.6266, 0.6449),
-    ],
+    # South: stop line down to bottom of frame
+    # Stop line: y=0.90, road width: x 0.475→0.60
     "South": [
-        (0.5013, 0.8958),
-        (0.6258, 0.8958),
-        (0.6258, 0.9995),
-        (0.5013, 0.9995),
+        (0.475, 0.90),   # top-left  (stop line)
+        (0.60,  0.90),   # top-right (stop line)
+        (0.60,  1.00),   # bottom-right (bottom of frame)
+        (0.475, 1.00),   # bottom-left  (bottom of frame)
     ],
+    # West: left edge of frame to stop line
+    # Stop line: x=0.40, road height: y 0.65→0.90
     "West": [
-        (0.0,    0.7245),
-        (0.3766, 0.7245),
-        (0.3766, 0.9995),
-        (0.0,    0.9995),
+        (0.02, 0.65),    # top-left  (left edge of frame)
+        (0.40, 0.65),    # top-right (stop line)
+        (0.40, 0.90),    # bottom-right (stop line)
+        (0.02, 0.90),    # bottom-left  (left edge of frame)
+    ],
+    # East: stop line to right edge of frame
+    # Stop line: x=0.60, road height: y 0.50→0.70
+    "East": [
+        (0.60, 0.50),    # top-left  (stop line)
+        (0.98, 0.50),    # top-right (right edge)
+        (0.98, 0.70),    # bottom-right (right edge)
+        (0.60, 0.70),    # bottom-left  (stop line)
     ],
 }
 
