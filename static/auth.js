@@ -42,34 +42,6 @@ function togglePw(inputId, btn) {
   btn.querySelector('svg').style.opacity = isText ? '1' : '0.5';
 }
 
-// ── Password strength meter ───────────────────────────────
-function checkStrength(pw) {
-  const fill  = document.getElementById('strengthFill');
-  const label = document.getElementById('strengthLabel');
-  if (!fill || !label) return;
-  
-  if (!pw) { fill.style.width = '0%'; label.textContent = ''; return; }
-
-  let score = 0;
-  if (pw.length >= 8)               score++;
-  if (pw.length >= 12)              score++;
-  if (/[A-Z]/.test(pw))             score++;
-  if (/[0-9]/.test(pw))             score++;
-  if (/[^A-Za-z0-9]/.test(pw))     score++;
-
-  const levels = [
-    { pct: '20%', color: '#ff4757', text: 'Weak',        textColor: '#ff4757' },
-    { pct: '40%', color: '#ffb800', text: 'Fair',        textColor: '#ffb800' },
-    { pct: '60%', color: '#ffb800', text: 'Good',        textColor: '#ffb800' },
-    { pct: '80%', color: '#00d4ff', text: 'Strong',      textColor: '#00d4ff' },
-    { pct: '100%',color: '#00ff88', text: 'Excellent',   textColor: '#00ff88' },
-  ];
-  const lvl = levels[Math.max(0, score - 1)];
-  fill.style.width      = lvl.pct;
-  fill.style.background = lvl.color;
-  label.textContent     = lvl.text;
-  label.style.color     = lvl.textColor;
-}
 
 // ── Field validation helpers ──────────────────────────────
 function setError(inputId, errId, msg) {

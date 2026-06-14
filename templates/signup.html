@@ -111,9 +111,8 @@
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
               <input type="password" id="signup-password" name="password"
-                     placeholder="Min 8 chars, 1 number"
-                     autocomplete="new-password" required
-                     oninput="checkStrength(this.value)" />
+                     placeholder="Enter your password"
+                     autocomplete="new-password" required />
               <button type="button" class="toggle-pw" onclick="togglePw('signup-password', this)"
                       aria-label="Toggle password visibility">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -122,10 +121,6 @@
                 </svg>
               </button>
             </div>
-            <div class="strength-bar">
-              <div class="strength-fill" id="strengthFill"></div>
-            </div>
-            <span class="strength-label" id="strengthLabel"></span>
             <span class="field-error" id="signup-password-err"></span>
           </div>
 
