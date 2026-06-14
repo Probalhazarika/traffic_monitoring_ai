@@ -351,6 +351,8 @@ input.valid {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .forgot-link {
   font-size: 0.8rem;
@@ -359,6 +361,34 @@ input.valid {
   transition: opacity var(--transition);
 }
 .forgot-link:hover { opacity: 0.75; text-decoration: underline; }
+
+.auth-switch {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.auth-switch .link {
+  color: var(--cyan);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 5px;
+}
+.auth-switch .link:hover {
+  text-decoration: underline;
+}
+
+.admin-check {
+  color: var(--amber);
+}
+.admin-check .checkmark {
+  border-color: rgba(255, 184, 0, 0.4);
+}
+.admin-check input:checked + .checkmark {
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+}
 
 /* ── Checkbox ────────────────────────────────────────────── */
 .checkbox-wrap {

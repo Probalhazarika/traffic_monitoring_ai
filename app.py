@@ -37,10 +37,18 @@ processor.start()
 
 @app.route("/login")
 def login_page():
-    """Render the login / sign-up page."""
+    """Render the login page."""
     if session.get("user_id"):
         return redirect(url_for("index"))
-    return render_template("auth.html")
+    return render_template("login.html")
+
+
+@app.route("/signup")
+def signup_page():
+    """Render the signup page."""
+    if session.get("user_id"):
+        return redirect(url_for("index"))
+    return render_template("signup.html")
 
 
 @app.route("/logout")
@@ -50,7 +58,7 @@ def logout_page():
 
 
 # ═══════════════════════════════════════════════
-#  Main dashboard
+#  Main dashboard & Admin
 # ═══════════════════════════════════════════════
 
 @app.route("/")
@@ -59,6 +67,16 @@ def index():
     if not session.get("user_id"):
         return redirect(url_for("login_page"))
     return render_template("index.html")
+
+
+@app.route("/admin")
+def admin_page():
+    """Admin dashboard page — requires admin role."""
+    if not session.get("user_id"):
+        return redirect(url_for("login_page"))
+    if session.get("role") != "admin":
+        return redirect(url_for("index"))
+    return render_template("admin.html")
 
 
 # ── MJPEG video stream ───────────────────────────

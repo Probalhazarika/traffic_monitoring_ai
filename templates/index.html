@@ -94,6 +94,10 @@
       </div>
     </div>
     <div class="topbar-meta">
+      {% if session.role == 'admin' %}
+      <a href="/admin" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600; color: #a78bfa; border: 1px solid rgba(167,139,250,0.4); border-radius: 4px; text-decoration: none; margin-right: 10px; transition: all 0.2s;">Admin Panel</a>
+      {% endif %}
+      <a href="/logout" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600; color: #ef4444; border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; text-decoration: none; margin-right: 10px; transition: all 0.2s;">Logout</a>
       <div class="meta-chip" id="chip-fps">FPS: –</div>
       <div class="meta-chip" id="chip-frame">Frame: –</div>
       <div class="meta-chip" id="chip-latency">Latency: –</div>

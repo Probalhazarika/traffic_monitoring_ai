@@ -7,6 +7,7 @@
 // ── Particle system ───────────────────────────────────────
 (function spawnParticles() {
   const container = document.getElementById('particles');
+  if (!container) return;
   const COUNT = 20;
   for (let i = 0; i < COUNT; i++) {
     const p = document.createElement('div');
@@ -23,6 +24,7 @@
 // ── Traffic light animation ───────────────────────────────
 (function cycleLights() {
   const lights  = document.querySelectorAll('.light');
+  if (!lights.length) return;
   let current   = 2; // start green
   setInterval(() => {
     lights.forEach(l => l.classList.remove('active'));
@@ -31,32 +33,10 @@
   }, 1800);
 })();
 
-// ── Tab switching ─────────────────────────────────────────
-const indicator = document.getElementById('tabIndicator');
-
-function switchTab(tab) {
-  // Tabs
-  document.querySelectorAll('.tab').forEach(t => {
-    t.classList.toggle('active', t.id === `tab-${tab}`);
-    t.setAttribute('aria-selected', t.id === `tab-${tab}`);
-  });
-  // Panels
-  document.querySelectorAll('.panel').forEach(p => {
-    p.classList.toggle('active', p.id === `panel-${tab}`);
-  });
-  // Indicator
-  indicator.classList.toggle('right', tab === 'signup');
-
-  // Clear alerts on switch
-  ['login-alert','signup-alert'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.hidden = true; el.textContent = ''; el.className = 'alert'; }
-  });
-}
-
 // ── Toggle password visibility ────────────────────────────
 function togglePw(inputId, btn) {
   const input = document.getElementById(inputId);
+  if (!input) return;
   const isText = input.type === 'text';
   input.type = isText ? 'password' : 'text';
   btn.querySelector('svg').style.opacity = isText ? '1' : '0.5';
@@ -66,6 +46,8 @@ function togglePw(inputId, btn) {
 function checkStrength(pw) {
   const fill  = document.getElementById('strengthFill');
   const label = document.getElementById('strengthLabel');
+  if (!fill || !label) return;
+  
   if (!pw) { fill.style.width = '0%'; label.textContent = ''; return; }
 
   let score = 0;
@@ -125,11 +107,12 @@ function showAlert(id, msg, type /* 'success' | 'error' */) {
 // ── Loading state ─────────────────────────────────────────
 function setLoading(btnId, loading) {
   const btn     = document.getElementById(btnId);
+  if (!btn) return;
   const text    = btn.querySelector('.btn-text');
   const spinner = btn.querySelector('.btn-spinner');
   btn.disabled  = loading;
-  text.hidden   = loading;
-  spinner.hidden= !loading;
+  if (text) text.hidden   = loading;
+  if (spinner) spinner.hidden= !loading;
 }
 
 // ── Forgot password (placeholder) ────────────────────────
@@ -146,6 +129,8 @@ async function handleLogin(e) {
 
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
+  const isAdminEl = document.getElementById('login-is-admin');
+  const is_admin = isAdminEl ? isAdminEl.checked : false;
   let   valid    = true;
 
   // Clear old states
@@ -171,8 +156,8 @@ async function handleLogin(e) {
     const res  = await fetch('/api/auth/login', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ username, password,
-                                remember: document.getElementById('remember-me').checked }),
+      body:    JSON.stringify({ username, password, is_admin,
+                                remember: document.getElementById('remember-me')?.checked }),
     });
     const data = await res.json();
 
@@ -204,6 +189,8 @@ async function handleSignup(e) {
   const password  = document.getElementById('signup-password').value;
   const confirm   = document.getElementById('signup-confirm').value;
   const agreed    = document.getElementById('agree-terms').checked;
+  const isAdminEl = document.getElementById('signup-is-admin');
+  const is_admin  = isAdminEl ? isAdminEl.checked : false;
   let   valid     = true;
 
   // Clear all
@@ -256,18 +243,24 @@ async function handleSignup(e) {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ firstname, lastname, badge_id: badge,
-                                email, username, password }),
+                                email, username, password, is_admin }),
     });
     const data = await res.json();
 
     if (res.ok && data.success) {
-      showAlert('signup-alert',
-        '✓ Account created! Please wait for administrator approval.',
-        'success');
+      if (is_admin) {
+        showAlert('signup-alert', '✓ Admin account created successfully! You can now log in.', 'success');
+      } else {
+        showAlert('signup-alert', '✓ Account created! Please wait for administrator approval.', 'success');
+      }
+      
       // Clear form
       document.getElementById('signupForm').reset();
-      document.getElementById('strengthFill').style.width = '0%';
-      document.getElementById('strengthLabel').textContent = '';
+      const sFill = document.getElementById('strengthFill');
+      const sLabel = document.getElementById('strengthLabel');
+      if (sFill) sFill.style.width = '0%';
+      if (sLabel) sLabel.textContent = '';
+      
       setLoading('signupBtn', false);
     } else {
       showAlert('signup-alert', data.error || 'Registration failed. Please try again.', 'error');

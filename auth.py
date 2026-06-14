@@ -66,11 +66,22 @@ def login_required(f):
     return decorated
 
 
+# ── Admin-required decorator ────────────────────────────
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get("role") != "admin":
+            return jsonify({"error": "Admin privileges required."}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 # ── Routes ────────────────────────────────────────────────
 
 @auth_bp.route("/signup", methods=["POST"])
 def signup():
-    """Register a new traffic controller account."""
+    """Register a new traffic controller or admin account."""
     data = request.get_json(silent=True) or {}
 
     firstname = (data.get("firstname") or "").strip()
@@ -79,6 +90,7 @@ def signup():
     email     = (data.get("email")     or "").strip().lower()
     username  = (data.get("username")  or "").strip().lower()
     password  = (data.get("password")  or "")
+    is_admin  = bool(data.get("is_admin", False))
 
     # ── Server-side validation ────────────────────────────
     if not all([firstname, lastname, badge_id, email, username, password]):
@@ -100,14 +112,27 @@ def signup():
 
     pw_hash = generate_password_hash(password)
 
+    role = "controller"
+    approved = 0
+
     try:
         conn = _get_conn()
+
+        if is_admin:
+            # Check if admin already exists
+            admin_count = conn.execute("SELECT COUNT(*) FROM controllers WHERE role = 'admin'").fetchone()[0]
+            if admin_count > 0:
+                conn.close()
+                return jsonify({"success": False, "error": "An admin account already exists."}), 409
+            role = "admin"
+            approved = 1
+
         conn.execute("""
             INSERT INTO controllers
-              (firstname, lastname, badge_id, email, username, password_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+              (firstname, lastname, badge_id, email, username, password_hash, role, approved, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (firstname, lastname, badge_id, email, username,
-              pw_hash, datetime.utcnow().isoformat()))
+              pw_hash, role, approved, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
     except sqlite3.IntegrityError as exc:
@@ -123,10 +148,16 @@ def signup():
         return jsonify({"success": False,
                         "error": f"{field} is already registered."}), 409
 
-    return jsonify({
-        "success": True,
-        "message": "Account created. Awaiting administrator approval."
-    }), 201
+    if role == "admin":
+        return jsonify({
+            "success": True,
+            "message": "Admin account created successfully. You can now log in."
+        }), 201
+    else:
+        return jsonify({
+            "success": True,
+            "message": "Account created. Awaiting administrator approval."
+        }), 201
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -137,6 +168,7 @@ def login():
     identifier = (data.get("username") or "").strip().lower()
     password   = (data.get("password") or "")
     remember   = bool(data.get("remember", False))
+    is_admin   = bool(data.get("is_admin", False))
 
     if not identifier or not password:
         return jsonify({"success": False,
@@ -157,6 +189,12 @@ def login():
         return jsonify({"success": False,
                         "error": "Invalid credentials."}), 401
 
+    # Role validation
+    if is_admin and user["role"] != "admin":
+        return jsonify({"success": False, "error": "This account is not an admin."}), 403
+    if not is_admin and user["role"] == "admin":
+        return jsonify({"success": False, "error": "Please check 'Login as Admin' to log in to your admin account."}), 403
+
     if not user["approved"]:
         return jsonify({"success": False,
                         "error": "Your account is pending administrator approval."}), 403
@@ -170,7 +208,7 @@ def login():
 
     return jsonify({
         "success":  True,
-        "redirect": "/",
+        "redirect": "/admin" if user["role"] == "admin" else "/",
         "user": {
             "id":        user["id"],
             "username":  user["username"],
@@ -179,6 +217,54 @@ def login():
             "role":      user["role"],
         }
     })
+
+# ── User Management Endpoints (Admin only) ────────────────
+
+@auth_bp.route("/users", methods=["GET"])
+@login_required
+@admin_required
+def get_users():
+    """Fetch all users."""
+    conn = _get_conn()
+    users = conn.execute("SELECT id, firstname, lastname, badge_id, email, username, role, approved, created_at FROM controllers ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return jsonify([dict(u) for u in users])
+
+
+@auth_bp.route("/users/<int:user_id>/approve", methods=["POST"])
+@login_required
+@admin_required
+def approve_user(user_id):
+    """Approve a user account."""
+    conn = _get_conn()
+    conn.execute("UPDATE controllers SET approved = 1 WHERE id = ? AND role != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@auth_bp.route("/users/<int:user_id>/revoke", methods=["POST"])
+@login_required
+@admin_required
+def revoke_user(user_id):
+    """Revoke a user account."""
+    conn = _get_conn()
+    conn.execute("UPDATE controllers SET approved = 0 WHERE id = ? AND role != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@auth_bp.route("/users/<int:user_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def delete_user(user_id):
+    """Delete a user account."""
+    conn = _get_conn()
+    conn.execute("DELETE FROM controllers WHERE id = ? AND role != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 
 @auth_bp.route("/logout", methods=["POST"])
