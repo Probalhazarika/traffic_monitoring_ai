@@ -28,7 +28,7 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 # ── DB helpers ────────────────────────────────────────────
 
 def _get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -50,6 +50,16 @@ def init_users_table():
             created_at   TEXT    NOT NULL
         )
     """)
+    
+    # Ensure default admin exists
+    admin = conn.execute("SELECT id FROM controllers WHERE username = 'ram'").fetchone()
+    if not admin:
+        pw_hash = generate_password_hash("hazarika1?")
+        conn.execute("""
+            INSERT INTO controllers (firstname, lastname, badge_id, email, username, password_hash, role, approved, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("Ram", "Admin", "ADMIN-001", "ram@admin.com", "ram", pw_hash, "admin", 1, datetime.utcnow().isoformat()))
+        
     conn.commit()
     conn.close()
     print("[Auth] controllers table ready.")
@@ -90,7 +100,6 @@ def signup():
     email     = (data.get("email")     or "").strip().lower()
     username  = (data.get("username")  or "").strip().lower()
     password  = (data.get("password")  or "")
-    is_admin  = bool(data.get("is_admin", False))
 
     # ── Server-side validation ────────────────────────────
     if not all([firstname, lastname, badge_id, email, username, password]):
@@ -118,15 +127,6 @@ def signup():
     try:
         conn = _get_conn()
 
-        if is_admin:
-            # Check if admin already exists
-            admin_count = conn.execute("SELECT COUNT(*) FROM controllers WHERE role = 'admin'").fetchone()[0]
-            if admin_count > 0:
-                conn.close()
-                return jsonify({"success": False, "error": "An admin account already exists."}), 409
-            role = "admin"
-            approved = 1
-
         conn.execute("""
             INSERT INTO controllers
               (firstname, lastname, badge_id, email, username, password_hash, role, approved, created_at)
@@ -148,16 +148,10 @@ def signup():
         return jsonify({"success": False,
                         "error": f"{field} is already registered."}), 409
 
-    if role == "admin":
-        return jsonify({
-            "success": True,
-            "message": "Admin account created successfully. You can now log in."
-        }), 201
-    else:
-        return jsonify({
-            "success": True,
-            "message": "Account created. Awaiting administrator approval."
-        }), 201
+    return jsonify({
+        "success": True,
+        "message": "Account created. Awaiting administrator approval."
+    }), 201
 
 
 @auth_bp.route("/login", methods=["POST"])

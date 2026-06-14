@@ -189,8 +189,6 @@ async function handleSignup(e) {
   const password  = document.getElementById('signup-password').value;
   const confirm   = document.getElementById('signup-confirm').value;
   const agreed    = document.getElementById('agree-terms').checked;
-  const isAdminEl = document.getElementById('signup-is-admin');
-  const is_admin  = isAdminEl ? isAdminEl.checked : false;
   let   valid     = true;
 
   // Clear all
@@ -243,16 +241,12 @@ async function handleSignup(e) {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ firstname, lastname, badge_id: badge,
-                                email, username, password, is_admin }),
+                                email, username, password }),
     });
     const data = await res.json();
 
     if (res.ok && data.success) {
-      if (is_admin) {
-        showAlert('signup-alert', '✓ Admin account created successfully! You can now log in.', 'success');
-      } else {
-        showAlert('signup-alert', '✓ Account created! Please wait for administrator approval.', 'success');
-      }
+      showAlert('signup-alert', '✓ Account created! Please wait for administrator approval.', 'success');
       
       // Clear form
       document.getElementById('signupForm').reset();
