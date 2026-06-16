@@ -129,4 +129,13 @@ The pipeline runs efficiently using a multi-threaded approach:
    - Updates the DOM and Chart.js graphs instantly without requiring full page reloads.
 
 ---
+
+## 🎯 Model Training (VisDrone Dataset)
+
+To ensure the highest accuracy for top-down, oblique, and long-range aerial perspectives, the underlying YOLOv8 model was custom-trained on the **VisDrone Dataset**. 
+- **The Dataset**: VisDrone is a large-scale benchmark dataset explicitly designed for drone-based computer vision. It contains thousands of images and videos captured by various drone-mounted cameras across different urban and highway scenarios.
+- **Why VisDrone?**: Standard pre-trained YOLOv8 models (trained on COCO) struggle to detect small vehicles from a bird's-eye view. Fine-tuning on VisDrone allows the model to reliably detect cars, buses, trucks, and motorbikes even when they appear tiny or distorted by drone camera angles.
+- **Performance**: The combination of VisDrone-trained weights, Super-Resolution, and Weighted Box Fusion makes the detector incredibly robust against altitude changes and poor lighting.
+
+---
 *Built for the future of Smart City infrastructure.*
