@@ -215,9 +215,17 @@ def api_recalibrate():
 # ═══════════════════════════════════════════════
 
 if __name__ == "__main__":
-    print(f"\n{'='*50}")
-    print(f"  AI Traffic Monitoring — Research Edition")
+    print(f"\n{'='*55}")
+    print(f"  🚦 TrafficCommand — AI Traffic Monitoring System")
+    print(f"{'-'*55}")
+    print(f"  Loaded Model: yolov8s-visdrone.pt")
+    print(f"  VisDrone Training Performance (50 Epochs):")
+    print(f"    • mAP@50    : 57.5%")
+    print(f"    • mAP@50-95 : 35.1%")
+    print(f"    • Precision : 65.9%")
+    print(f"    • Recall    : 54.0%")
+    print(f"{'-'*55}")
     print(f"  Open: http://localhost:{FLASK_PORT}/login")
-    print(f"{'='*50}\n")
+    print(f"{'='*55}\n")
     app.run(host=FLASK_HOST, port=FLASK_PORT, debug=False,
             threaded=True)
