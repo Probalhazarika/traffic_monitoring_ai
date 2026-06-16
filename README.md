@@ -135,7 +135,17 @@ The pipeline runs efficiently using a multi-threaded approach:
 To ensure the highest accuracy for top-down, oblique, and long-range aerial perspectives, the underlying YOLOv8 model was custom-trained on the **VisDrone Dataset**. 
 - **The Dataset**: VisDrone is a large-scale benchmark dataset explicitly designed for drone-based computer vision. It contains thousands of images and videos captured by various drone-mounted cameras across different urban and highway scenarios.
 - **Why VisDrone?**: Standard pre-trained YOLOv8 models (trained on COCO) struggle to detect small vehicles from a bird's-eye view. Fine-tuning on VisDrone allows the model to reliably detect cars, buses, trucks, and motorbikes even when they appear tiny or distorted by drone camera angles.
-- **Performance**: The combination of VisDrone-trained weights, Super-Resolution, and Weighted Box Fusion makes the detector incredibly robust against altitude changes and poor lighting.
+
+### Performance Metrics (After 50 Epochs)
+The custom-trained weights (`yolov8s-visdrone.pt`) achieved the following validation metrics:
+| Metric | Score | Description |
+|---|---|---|
+| **mAP@50** | **57.5%** | Mean Average Precision at IoU 0.50 |
+| **mAP@50-95** | **35.1%** | Mean Average Precision across IoU thresholds (0.50 to 0.95) |
+| **Precision** | **65.9%** | Percentage of correct positive predictions |
+| **Recall** | **54.0%** | Percentage of actual positives correctly identified |
+
+*Note: The combination of VisDrone-trained weights, Super-Resolution, and Weighted Box Fusion makes the detector incredibly robust against altitude changes and poor lighting.*
 
 ---
 *Built for the future of Smart City infrastructure.*
