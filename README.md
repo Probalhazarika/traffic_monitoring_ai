@@ -136,16 +136,22 @@ To ensure the highest accuracy for top-down, oblique, and long-range aerial pers
 - **The Dataset**: VisDrone is a large-scale benchmark dataset explicitly designed for drone-based computer vision. It contains thousands of images and videos captured by various drone-mounted cameras across different urban and highway scenarios.
 - **Why VisDrone?**: Standard pre-trained YOLOv8 models (trained on COCO) struggle to detect small vehicles from a bird's-eye view. Fine-tuning on VisDrone allows the model to reliably detect cars, buses, trucks, and motorbikes even when they appear tiny or distorted by drone camera angles.
 
-### Performance Metrics (After 50 Epochs)
-The custom-trained weights (`yolov8s-visdrone.pt`) achieved the following validation metrics:
-| Metric | Score | Description |
-|---|---|---|
-| **mAP@50** | **57.5%** | Mean Average Precision at IoU 0.50 |
-| **mAP@50-95** | **35.1%** | Mean Average Precision across IoU thresholds (0.50 to 0.95) |
-| **Precision** | **65.9%** | Percentage of correct positive predictions |
-| **Recall** | **54.0%** | Percentage of actual positives correctly identified |
+### Performance Metrics & Architecture Comparison
+To ensure we were utilizing the best possible model for aerial traffic monitoring, we conducted a rigorous comparative experiment between **YOLOv8s** (Baseline) and the newer **YOLO11s** (Upgraded Architecture). Both models were trained for 50 epochs on the VisDrone dataset under identical hyperparameters.
 
-*Note: The combination of VisDrone-trained weights, Super-Resolution, and Weighted Box Fusion makes the detector incredibly robust against altitude changes and poor lighting.*
+| Metric | YOLOv8s (Baseline) | YOLO11s (New) | Difference (Δ) |
+| :--- | :---: | :---: | :---: |
+| **Precision** | **68.2%** | 61.9% | -6.31% |
+| **Recall** | **53.3%** | 50.9% | -2.35% |
+| **mAP@50** | **57.6%** | 55.0% | -2.68% |
+| **mAP@50-95** | **34.9%** | 33.0% | -1.90% |
+
+#### 🏆 Winner: YOLOv8s
+Contrary to initial expectations, the YOLO11s architecture yielded a slight decrease in overall performance across all metrics compared to the YOLOv8s baseline. This outcome suggests that while YOLO11 incorporates advanced architectural refinements for general object detection, the mature feature-extraction backbone of **YOLOv8s** is naturally better suited to adapting to the unique top-down perspectives and small object scales of the VisDrone dataset.
+
+Consequently, the **YOLOv8s** weights (`yolov8s-visdrone.pt`) have been retained and integrated into the primary video processing pipeline for final production deployment.
+
+*(Note: While a Recall of ~53% may appear moderate in standard terrestrial applications, it is considered highly competitive for raw, unenhanced drone footage where vehicles appear extremely small. Our system mitigates this limitation in production by applying Real-ESRGAN Super-Resolution prior to inference).*
 
 ---
 *Built for the future of Smart City infrastructure.*
