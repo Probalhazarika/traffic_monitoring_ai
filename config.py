@@ -7,7 +7,7 @@ import os
 # ── Paths ──────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(BASE_DIR, "videos", "traffic.mp4")
-MODEL_PATH = "yolov8s-visdrone.pt"
+MODEL_PATH = os.path.join(BASE_DIR, "weights", "yolov8s-visdrone.pt")
 DB_PATH    = os.path.join(BASE_DIR, "database", "traffic_data.db")
 
 # ── Research-grade pipeline flags ──────────────
